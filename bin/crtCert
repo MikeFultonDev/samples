@@ -1,0 +1,86 @@
+#!/bin/sh
+. generalfuncs
+. racffuncs
+
+if [ $# -lt 4 ]; then
+	echo "Syntax: $0 <cert-name> <cert-owner> <cert-label> <cert-auth-label> [<title>]" >&2
+	echo "  where <cert-name> is the common name of the certificate" >&2
+	echo "  where <cert-owner> is the ID of the certificate owner" >&2
+	echo "  where <cert-label> is the certificate label to use" >&2
+	echo "  where <cert-auth-label> is the signing certificate label to use" >&2
+	echo "  and <title> is the optional certificate title" >&2
+	exit 4
+fi
+
+set +x
+
+export NAME="$1"
+export OWNER="$2"
+export LABEL="$3"
+export AUTH_LABEL="$4"
+
+if [ $# -gt 4 ]; then 
+	export TITLE="$5"
+else
+	export TITLE='Generic Certificate'
+fi
+
+export X509DN_T="${TITLE}"
+export X509DN_OU='Markham Labs'
+export X509DN_O='IBM'
+export X509DN_L='Markham'
+export X509DN_SP='ON'
+export X509DN_C='CAN'
+export X509DN_NOTAFTER='DATE(2021-12-31)'
+export X509DN_NOTBEFORE='TIME(00:00:00)'
+
+mydir=`abspath $0`
+
+subjectsdn=`racfSubjectsDN "${NAME}"`
+issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} KEYUSAGE(HANDSHAKE) SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}" >&2
+	exit $rc
+fi
+
+cat >/dev/null <<ZZ
+
+//ZCLIENT  JOB MSGLEVEL=(1,1),MSGCLASS=A,CLASS=A,NOTIFY=&SYSUID
+//         EXPORT SYMLIST=*
+//*
+//* create certficate for client to authenticate with host
+//*
+//* RC IS ALWAYS 0, check the output for possible errors
+//*
+//         SET ID=ONNO
+//         SET MLQ=CLIENT.&ID
+//*
+//CREATE   EXEC PGM=IKJEFT01,REGION=0M
+//SYSTSPRT DD SYSOUT=*
+//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
+/* create cert, signed by 'CA2' */
+ RACDCERT ID(&ID) GENCERT SUBJECTSDN( +
+  CN('&ID._client') +
+  OU('RTP labs') O('IBM') L('Raleigh') SP('NC') C('US')) +
+  NOTAFTER(DATE(9997-12-31)) SIZE(2048) +
+  WITHLABEL('&ID._client') +
+  SIGNWITH(CERTAUTH LABEL('CA2')) +
+  KEYUSAGE(HANDSHAKE)
+ SETROPTS RACLIST(DIGTCERT) REFRESH
+//*
+//EXPORT   EXEC PGM=IKJEFT01,REGION=0M
+//SYSTSPRT DD SYSOUT=*
+//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
+/* export client authentication certificate */
+ RACDCERT ID(&ID) EXPORT(LABEL('&ID._client')) +
+  FORMAT(PKCS12DER) PASSWORD('STRESS4ZOSMF') +
+  DSN('TOOLS.CRYPTO.&MLQ..PKCS12.DER')
+//*
+//LIST     EXEC PGM=IKJEFT01,REGION=0M
+//SYSTSPRT DD SYSOUT=*
+//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
+/* list certificate */
+ RACDCERT ID(&ID) LIST(LABEL('&ID._client'))
+
+ZZ

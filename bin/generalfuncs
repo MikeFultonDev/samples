@@ -1,0 +1,121 @@
+#
+# SOURCE general funcs
+#
+
+#
+# Determine if 'sh' or 'bash'
+#
+`whence sh >/dev/null 2>&1`
+if [ $? -eq 0 ]; then
+	abspath() {
+		pgm="$1"
+		relpgm=`whence ${pgm}`
+		rc=$?
+		if [ $rc -eq 0 ]; then
+			abspath="$( cd "$( dirname "${relpgm}" )" >/dev/null 2>&1 && pwd )"
+			echo "${abspath}"
+		fi
+		return $rc
+	}
+else
+	abspath() {
+		pgm="$1"
+                typeinfo=`type -a "${pgm}" 2>/dev/null`
+		rc=$?
+		if [ $rc -eq 0 ]; then
+                        relpgm=`echo "${typeinfo}" | awk '{ print $3; exit }'`
+			abspath="$( cd "$( dirname "${relpgm}" )" >/dev/null 2>&1 && pwd )"
+                        rc=$?
+			echo "${abspath}"
+		fi
+                return $rc
+	}
+fi
+
+a2e() {
+	file="$1"
+	tmpfile="${TMP}/ascii.$$"
+	iconv -t IBM-1047 -f ISO8859-1 <"${file}" >"${tmpfile}"
+	if [ $? -gt 0 ]; then
+		return $?
+	fi
+
+	mv "${tmpfile}" "${file}"
+	if [ $? -gt 0 ]; then
+		return $?
+	fi
+	chtag -tc IBM-1047 "${file}"
+	return $?
+}
+
+e2a() {
+	file="$1"
+	tmpfile="${TMP}/ascii.$$"
+	iconv -f IBM-1047 -t ISO8859-1 <"${file}" >"${tmpfile}"
+	if [ $? -gt 0 ]; then
+		return $?
+	fi
+
+	mv "${tmpfile}" "${file}"
+	if [ $? -gt 0 ]; then
+		return $?
+	fi
+	chtag -tc ISO8859-1 "${file}"
+	return $?
+}
+callerdir() {
+	calledas="$1"
+	calledasdir="$(dirname ${calledas})"
+	if [ "${calledasdir}" = '.' ]; then
+		if [ "${calledas%%/*}" = "${calledas}" ]; then
+			calledasdir=''
+		fi
+	fi
+	if [ "${calledasdir}" = '' ]; then
+		calledasdir=$(abspath "${calledas}")
+	fi
+	echo "${calledasdir}"
+}
+
+issueTSO() {
+	cmd=$1
+	tmpout="${TMP}/$$tso.out"
+	tsocmd "${cmd}" >$tmpout 2>/dev/null
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		cat "${tmpout}" >&2
+	fi
+	rm -f "${tmpout}"
+	return $rc
+}
+
+undefinedProperty() {
+	val=$1
+	if [ "${val}" = "" ] || [ "${val}" = "NONE" ]; then
+		echo true
+	else
+		echo false
+	fi
+}
+
+definedProperty() {
+	negate=`undefinedProperty "$1"`
+	if ${negate}; then
+		echo false;
+	else
+		echo true
+	fi
+}
+
+chkProperties() {
+	properties=$*
+	rc=0
+	for property in ${properties}; do
+		eval "val=\${$property}" 
+		if `undefinedProperty "${val}"`; then 
+			echo "Property \$${property} is undefined but is required" >&2
+			rc=4
+		fi
+	done
+	return $rc
+}

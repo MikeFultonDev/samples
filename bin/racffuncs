@@ -1,0 +1,141 @@
+#
+# sourced by other tools
+#
+
+racfGroupExists() {
+	tsocmd "LISTGRP $1" >/dev/null 2>/dev/null
+	if [ $? -eq 0 ]; then
+		echo true
+	else
+		echo false
+	fi
+}
+
+racfProfileExists() {
+	tsocmd "RLIST "$1" "$2"" >/dev/null 2>/dev/null
+	if [ $? -eq 0 ]; then
+		echo true
+	else
+		echo false
+	fi
+}
+
+racfUserExists() {
+	user="$1"
+	tsocmd "listuser ${user}" >/dev/null 2>&1
+	if [ $? -gt 0 ]; then
+		echo false
+	else
+		echo true
+	fi
+}
+
+racfPermitUsers() {
+	class="$1"
+	profile="$2"
+	access="$3"
+	shift 3
+	users="$*"
+
+	if `undefinedProperty "${users}"`; then
+		return 0
+	fi
+
+	for user in $users; do
+		if `racfUserExists "${user}"` ; then
+			tsocmd "PERMIT ${profile} CLASS(${class}) DELETE ID(${user})" >/dev/null 2>/dev/null
+			issueTSO "PERMIT ${profile} CLASS(${class}) ACCESS(${access}) ID(${user})"
+			chk "$?" "Unable to permit ${profile} class(${class}) access(${access}) id(${user})"
+		fi
+	done
+	return 0
+}
+
+racfActivateAndShareClasses() {
+	classes="$*"
+
+	for class in $classes; do
+		issueTSO "SETROPTS CLASSACT(${class}) RACLIST(${class})"
+		chk "$?" "Unable to activate and share ${class}"
+	done
+	return 0
+}
+
+racfSetGenericClasses() {
+	classes="$*"
+
+	for class in $classes; do
+		issueTSO "SETROPTS GENERIC(${class})"
+		chk "$?" "Unable to set class ${class} as generic"
+	done
+	return 0
+}
+
+racfRefreshClasses() {
+	classes="$*"
+
+	for class in $classes; do
+		issueTSO "SETROPTS RACLIST(${class}) REFRESH"
+		chk "$?" "Unable to refresh class ${class}"
+	done
+	return 0
+}
+
+racfSubjectsDN() {
+	commonName="$1"
+	tv="${X509DN_T}"	
+	ouv="${X509DN_OU}"	
+	ov="${X509DN_O}"	
+	lv="${X509DN_L}"	
+	spv="${X509DN_SP}"	
+	cv="${X509DN_C}"	
+	nb="${X509DN_NB}"	
+	na="${X509DN_NA}"	
+
+	subjectsDN="SUBJECTSDN(CN('${commonName}')"
+	if `definedProperty "${tv}"`; then
+		subjectsDN="${subjectsDN} T('${tv}')"
+	fi
+	if `definedProperty "${ouv}"`; then
+		subjectsDN="${subjectsDN} OU('${ouv}')"
+	fi
+	if `definedProperty "${ov}"`; then
+		subjectsDN="${subjectsDN} O('${ov}')"
+	fi
+	if `definedProperty "${lv}"`; then
+		subjectsDN="${subjectsDN} L('${lv}')"
+	fi
+	if `definedProperty "${spv}"`; then
+		subjectsDN="${subjectsDN} SP('${spv}')"
+	fi
+	if `definedProperty "${cv}"`; then
+		subjectsDN="${subjectsDN} C('${cv}')"
+	fi
+	if `definedProperty "${nb}"`; then
+		subjectsDN="${subjectsDN} NOTBEFORE('${nb}')"
+	fi
+	if `definedProperty "${na}"`; then
+		subjectsDN="${subjectsDN} NOTAFTER('${na}')"
+	fi
+	subjectsDN="${subjectsDN})"
+	echo "${subjectsDN}"
+	return 0
+}
+
+racfEnhancedGenericNamingInEffect() {
+	racfState=`tsocmd "setropts list" 2>/dev/null | grep 'ENHANCED GENERIC NAMING'`
+	if [ "${racfState}" = "ENHANCED GENERIC NAMING IS IN EFFECT" ]; then
+		echo true
+	else
+		echo false
+	fi
+}
+
+racfDatasetProfileExists() {
+	tsocmd "LISTDSD DATASET('$1')" >/dev/null 2>/dev/null
+	if [ $? -eq 0 ]; then
+		echo true
+	else
+		echo false
+	fi
+}
