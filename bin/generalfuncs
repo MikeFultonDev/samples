@@ -119,3 +119,24 @@ chkProperties() {
 	done
 	return $rc
 }
+
+chk() {
+	rc=$1
+	msg="$2"
+
+	if  [ $rc -eq 0 ]; then
+		return 0
+	fi
+	echo "${msg}" >&2
+	exit $rc
+}
+
+isinteger() {
+	val=$1
+	result=`echo "$1" | tr -d '[:digit:]'`
+	if [ "${result}" = '' ] ; then 
+		echo true
+	else
+		echo false
+	fi
+}

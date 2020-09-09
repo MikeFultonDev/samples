@@ -9,6 +9,11 @@ if [ $# -lt 4 ]; then
 	echo "  where <cert-label> is the certificate label to use" >&2
 	echo "  where <cert-auth-label> is the signing certificate label to use" >&2
 	echo "  and <title> is the optional certificate title" >&2
+	echo "Example:" >&2
+	echo "To create a certificate with name zosmfcc, owned by ibmuser, label 'zosmf client certificate', auth label ADCDCA, and title 'z/OSMF Client Certificate'" >&2
+	echo "  $0 zosmfcc ibmuser 'zosmf client certificate' 'ADCDCA' 'z/OSMF Client Certificate'" >&2
+	echo "To delete this certificate:" >&2
+	echo "  tsocmd \"racdcert delete (label('zosmf client certificate'))\"" >&2
 	exit 4
 fi
 
@@ -38,11 +43,10 @@ mydir=`abspath $0`
 
 subjectsdn=`racfSubjectsDN "${NAME}"`
 issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} KEYUSAGE(HANDSHAKE) SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
-rc=$?
-if [ $rc -gt 0 ]; then
-	echo "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}" >&2
-	exit $rc
-fi
+chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
+
+racfRefreshClasses "DIGTCERT"
+chk $? "Unable to refresh DIGTCERT class"
 
 cat >/dev/null <<ZZ
 
