@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+# Get (or Set) a z/OSMF System Variable
+# See https://tech.mikefulton.ca/ZOSMFSystemVariableAPIs for details on the underlying z/OSMF APIs
+# This example uses httpsget. See Syntax for details
+#
+Syntax() {
+	echo "$0 <var>[=<val>]" >&2
+	echo "  Where <var> is the z/OSMF System Varaible to get or set" >&2
+	echo "  If <val> is specified, <var> will be set to <val>" >&2
+	echo "  If <val> is not specified, the current value of <var> will be written to stdout" >&2
+	echo "Example: Set the variable myappport to 2020" >&2
+	echo " $0 myappport=2020" >&2
+	echo "Example: Print the value of myappport" >&2
+	echo " $0 myappport" >&2
+	echo "Note:" >&2
+	echo "You need httpsget to run this code. You can get the latest version from: https://github.com/zospm/zospm/blob/main/bin/httpsget" >&2
+}
+
+zosmfport() {
+	zosmfnetstat=`tsocmd netstat 2>/dev/null | grep IZUSVR | grep ".*Listen"`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to determine port z/OSMF (IZUSVR*) is listening on. Is z/OSMF started on this system?" >&2
+		Syntax
+	fi
+ 	zosmfqualifiedport=`echo "${zosmfnetstat}" | awk '{ print $4 }'`
+	zosmfport=${zosmfqualifiedport##*.}
+	echo ${zosmfport}
+}
+
+
+if [ $# -eq 0 ]; then
+  Syntax
+  exit 4
+fi
+
+httpsgetversion=`httpsget -V 2>/dev/null`
+rc=$?
+if [ $rc -eq 127 ]; then
+	echo "httpsget not found." >&2
+	Syntax
+	exit 16
+fi
+if [ $rc -gt 0 ]; then
+	echo "You have an old version of httpsget. You need at least Version 1.0.1" >&2
+	Syntax
+	exit 8
+fi
+
+sysname=`sysvar SYSNAME`
+sysplexname=`sysvar SYSPLEX`
+zosmfport=`zosmfport`
+
+arg="$1"
+sysval="${arg#*=}"
+if [ "${sysval}" = "$1" ]; then
+	sysvar="$1"
+	sysval=""
+else
+	sysvar="${arg%%=*}"
+fi
+
+if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
+	opts="-u ${USERNAME}:${PASSWORD}"
+else
+	opts=''
+fi
+payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to read z/OSMF system variables" >&2      
+	exit 8
+fi
+echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047  

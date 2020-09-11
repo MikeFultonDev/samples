@@ -45,8 +45,16 @@ subjectsdn=`racfSubjectsDN "${NAME}"`
 issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} KEYUSAGE(HANDSHAKE) SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
 chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
 
+issueTSO "RACDCERT ALTER(LABEL('${LABEL}')) TRUST"
+chk $? "Unable to mark certificate with label ${LABEL} as trusted"
+
 racfRefreshClasses "DIGTCERT"
 chk $? "Unable to refresh DIGTCERT class"
+
+tsocmd "RACDCERT ID(${OWNER}) LIST(LABEL('${LABEL}'))"
+chk $? "Unable to list certificate label ${LABEL} for owner ${OWNER}"
+
+#issueTSO "RACDCERT ID(${OWNER}) EXPORT(LABEL('${LABEL}')) FORMAT(PKCS12DER) PASSWORD('STRESS4ZOSMF') DSN('IBMUSER.TEST')"
 
 cat >/dev/null <<ZZ
 
