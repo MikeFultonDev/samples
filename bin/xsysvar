@@ -66,10 +66,15 @@ if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 else
 	opts=''
 fi
-payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+if [ "${sysval}" = '' ]; then
+	payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+else
+	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
+	payload=`echo ${request} | httpspost ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+fi
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Unable to read z/OSMF system variables" >&2      
+	echo "z/OSMF system variable call failed" >&2      
 	exit 8
 fi
-echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047  
+ebcdic_payload=`echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047`
