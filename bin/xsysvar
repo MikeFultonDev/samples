@@ -5,10 +5,11 @@
 # This example uses httpsget. See Syntax for details
 #
 Syntax() {
-	echo "$0 <var>[=<val>]" >&2
+	echo "$0 [-v] <var>[=<val>]" >&2
 	echo "  Where <var> is the z/OSMF System Varaible to get or set" >&2
 	echo "  If <val> is specified, <var> will be set to <val>" >&2
 	echo "  If <val> is not specified, the current value of <var> will be written to stdout" >&2
+	echo "  If -v is specified, verbose network tracing will be written to stderr" >&2
 	echo "Example: Set the variable myappport to 2020" >&2
 	echo " $0 myappport=2020" >&2
 	echo "Example: Print the value of myappport" >&2
@@ -29,6 +30,24 @@ zosmfport() {
 	echo ${zosmfport}
 }
 
+opts=""         	
+verbose=0
+while getopts ":v" opt; do
+	case ${opt} in
+		v )
+			verbose=1
+			opts="${opts} -v"
+			;;
+		\?)         
+			if [ ${OPTARG} != "?" ]; then
+				echo "Unknown Option: ${OPTARG}" >&2
+			fi                
+			Syntax
+			exit 4
+			;;        
+	esac  	
+done    	
+shift $(expr $OPTIND - 1 )
 
 if [ $# -eq 0 ]; then
   Syntax
@@ -66,6 +85,18 @@ if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 else
 	opts=''
 fi
+if [ ${verbose} -gt 0 ]; then
+	file="$RANDOM.$$.https.out"
+	if [ "$TMP" != '' ]; then
+		verboseFile="${TMP}/${file}"
+	else
+		verboseFile="/tmp/${file}"	
+	fi
+	opts="${opts} -v ${verboseFile}"
+else
+	verboseFile=''
+fi
+
 if [ "${sysval}" = '' ]; then
 	payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
 else
@@ -73,8 +104,13 @@ else
 	payload=`echo ${request} | httpspost ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
 fi
 rc=$?
+if [ ${verbose} -gt 0 ]; then
+	cat "${verboseFile}" >&2
+	rm -f "${verboseFile}"
+fi
 if [ $rc -gt 0 ]; then
 	echo "z/OSMF system variable call failed" >&2      
 	exit 8
 fi
 ebcdic_payload=`echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047`
+echo "${ebcdic_payload}"
