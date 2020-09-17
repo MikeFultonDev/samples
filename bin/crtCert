@@ -42,7 +42,7 @@ export X509DN_NOTBEFORE='TIME(00:00:00)'
 mydir=`abspath $0`
 
 subjectsdn=`racfSubjectsDN "${NAME}"`
-issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} KEYUSAGE(HANDSHAKE) SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
+issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
 chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
 
 issueTSO "RACDCERT ALTER(LABEL('${LABEL}')) TRUST"
@@ -50,49 +50,3 @@ chk $? "Unable to mark certificate with label ${LABEL} as trusted"
 
 racfRefreshClasses "DIGTCERT"
 chk $? "Unable to refresh DIGTCERT class"
-
-tsocmd "RACDCERT ID(${OWNER}) LIST(LABEL('${LABEL}'))"
-chk $? "Unable to list certificate label ${LABEL} for owner ${OWNER}"
-
-#issueTSO "RACDCERT ID(${OWNER}) EXPORT(LABEL('${LABEL}')) FORMAT(PKCS12DER) PASSWORD('STRESS4ZOSMF') DSN('IBMUSER.TEST')"
-
-cat >/dev/null <<ZZ
-
-//ZCLIENT  JOB MSGLEVEL=(1,1),MSGCLASS=A,CLASS=A,NOTIFY=&SYSUID
-//         EXPORT SYMLIST=*
-//*
-//* create certficate for client to authenticate with host
-//*
-//* RC IS ALWAYS 0, check the output for possible errors
-//*
-//         SET ID=ONNO
-//         SET MLQ=CLIENT.&ID
-//*
-//CREATE   EXEC PGM=IKJEFT01,REGION=0M
-//SYSTSPRT DD SYSOUT=*
-//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
-/* create cert, signed by 'CA2' */
- RACDCERT ID(&ID) GENCERT SUBJECTSDN( +
-  CN('&ID._client') +
-  OU('RTP labs') O('IBM') L('Raleigh') SP('NC') C('US')) +
-  NOTAFTER(DATE(9997-12-31)) SIZE(2048) +
-  WITHLABEL('&ID._client') +
-  SIGNWITH(CERTAUTH LABEL('CA2')) +
-  KEYUSAGE(HANDSHAKE)
- SETROPTS RACLIST(DIGTCERT) REFRESH
-//*
-//EXPORT   EXEC PGM=IKJEFT01,REGION=0M
-//SYSTSPRT DD SYSOUT=*
-//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
-/* export client authentication certificate */
- RACDCERT ID(&ID) EXPORT(LABEL('&ID._client')) +
-  FORMAT(PKCS12DER) PASSWORD('STRESS4ZOSMF') +
-  DSN('TOOLS.CRYPTO.&MLQ..PKCS12.DER')
-//*
-//LIST     EXEC PGM=IKJEFT01,REGION=0M
-//SYSTSPRT DD SYSOUT=*
-//SYSTSIN  DD DATA,DLM=$$,SYMBOLS=JCLONLY
-/* list certificate */
- RACDCERT ID(&ID) LIST(LABEL('&ID._client'))
-
-ZZ

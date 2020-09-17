@@ -1,0 +1,33 @@
+#!/bin/sh
+export PATH=$HOME/zospm/bin:$HOME/samples/bin:$PATH
+
+. generalfuncs
+. racffuncs
+
+certlabel='zosmf certificate'
+certtitle='z/OSMF Certificate'
+user=ibmuser
+userring='ZOSMFCR'
+zosmfca='zOSMFCA'
+
+tsocmd "racdcert remove(id(${user}) label('${certlabel}') ring(${userring}))"  >/dev/null 2>&1
+tsocmd "racdcert id(${user}) delring(${userring})" >/dev/null 2>&1
+tsocmd "racdcert delete (label('${certlabel}'))" >/dev/null 2>&1
+
+crtCert zosmfcc ibmuser "${certlabel}" "${zosmfca}" "${certtitle}"
+chk $? "Unable to create certificate"
+
+issueTSO "RACDCERT ID(${user}) ADDRING(${userring})"
+chk $? "Unable to add userring ${userring}"
+
+issueTSO "RACDCERT ID(${user}) CONNECT(ID(${user}) LABEL('${certlabel}') RING(${userring}) DEFAULT)"
+chk $? "Unable to connect ${certlabel} and ${userring}"
+
+issueTSO "RACDCERT ID(${user}) CONNECT(CERTAUTH LABEL('${zosmfca}') RING(${userring}))"
+chk $? "Unable to connect certauth ${zosmfca} and ${userring}"
+
+racfRefreshClasses "DIGTCERT DIGTRING"
+chk $? "Unable to refresh DIGTCERT and DIGTRING classes"
+
+tsocmd "RACDCERT ID(${user}) LIST(LABEL('${certlabel}'))"
+chk $? "Unable to list certificate label ${certlabel} for owner ${user}"
