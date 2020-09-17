@@ -4,7 +4,7 @@ export PATH=$HOME/zospm/bin:$HOME/samples/bin:$PATH
 . generalfuncs
 . racffuncs
 
-certlabel='zosmf certificate'
+certlabel='zosmf-certificate'
 certtitle='z/OSMF Certificate'
 user=ibmuser
 userring='ZOSMFCR'
