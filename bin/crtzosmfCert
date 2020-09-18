@@ -1,14 +1,81 @@
 #!/bin/sh
-export PATH=$HOME/zospm/bin:$HOME/samples/bin:$PATH
+
+opts=''
+verbose=0
+certlabel='zosmf-certificate'
+certtitle='z/OSMF Certificate'
+user=$(hlq)
+userring='ZOSMFCR'
+zosmfca='zOSMFCA'
+browserCertPW='zosmfClientCert'
+browserCertDir='/tmp'
+certPrefix='zosmf'
+
+Syntax() {
+	echo "$0 [-v] [-d <browser-cert-directory>] [-p <browser-cert-pw>]" >&2
+	echo "  where: " >&2
+	echo "    -v : if specified, write information about the certificate to stderr" >&2
+	echo "    <browser-cert-direcotyr> is the directory to write the exported browser certificate to (defaults to /tmp)" >&2
+	echo "    <browser-cert-pw> is the browser certificate password (defaults to ${browserCertPW})" >&2
+	echo "Example:" >&2
+	echo "  Create a z/OSMF certificate and create: " >&2  
+	echo "    P12 format certificate $HOME/${certPrefix}.p12, with a password of mypassword" >&2
+	echo "    PEM certificate $HOME/${certPrefix}-crt.pem" >&2
+	echo "    PEM private key $HOME/${certPrefix}-key.pem" >&2
+	echo "  $0 -d $HOME -p mypassword" >&2
+	exit 8
+}
+
+while getopts ":vh?d:p:" opt; do
+        case ${opt} in
+		p ) 
+			browserCertPW=${OPTARG}
+			;;
+		d ) 
+			browserCertDir=${OPTARG}
+			if [ -d "${browserCertDir}" ]; then
+				echo "${browserCertDir} is not a valid directory." >&2
+				Syntax
+			fi
+			;;
+                v )
+                        verbose=1
+ 			opts="${opts} -v"
+          		;;
+	        \?)
+	                if [ ${OPTARG} != "?" ] && [ ${OPTARG} != "h" ]; then
+	                        echo "Unknown Option: ${OPTARG}" >&2
+	                fi
+	                Syntax
+	                exit 4
+	                ;;
+	esac
+done
+shift $(expr $OPTIND - 1 )
+	
+if [ $# -gt 0 ]; then
+	Syntax
+	exit 4
+fi
+
+loc=`whence generalfuncs`
+if [ $? -gt 0 ]; then
+	echo "Ensure zospm/bin is in your PATH" >&2
+	Syntax
+fi
+loc=`whence crtCert`
+if [ $? -gt 0 ]; then
+	echo "Ensure samples/bin are in your PATH" >&2
+	Syntax
+fi
 
 . generalfuncs
 . racffuncs
 
-certlabel='zosmf-certificate'
-certtitle='z/OSMF Certificate'
-user=ibmuser
-userring='ZOSMFCR'
-zosmfca='zOSMFCA'
+tmpds=`mvstmp $(hlq)`
+drm -f "${tmpds}"
+dtouch -tseq "${tmpds}"
+chk $? "Unable to allocate temporary certificate dataset ${tmpds}"
 
 tsocmd "racdcert remove(id(${user}) label('${certlabel}') ring(${userring}))"  >/dev/null 2>&1
 tsocmd "racdcert id(${user}) delring(${userring})" >/dev/null 2>&1
@@ -29,5 +96,26 @@ chk $? "Unable to connect certauth ${zosmfca} and ${userring}"
 racfRefreshClasses "DIGTCERT DIGTRING"
 chk $? "Unable to refresh DIGTCERT and DIGTRING classes"
 
-tsocmd "RACDCERT ID(${user}) LIST(LABEL('${certlabel}'))"
-chk $? "Unable to list certificate label ${certlabel} for owner ${user}"
+issueTSO "RACDCERT ID(${user}) EXPORT(LABEL('${certlabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
+chk $? "Unable to export RACF certificate as DER encoded client certificate"
+
+p12file="${browserCertDir}/${certPrefix}.p12"
+pemcert="${browserCertDir}/${certPrefix}-crt.pem"
+pemkey="${browserCertDir}/${certPrefix}-key.pem"
+
+dcp -B "${tmpds}" "${p12file}"
+chk $? "Unable to copy certificate ${tmpds}"
+
+#openssl pkcs12 -in "${p12file}" -out "${pemcert}" -clcerts -nokeys -passin "pass:${browserCertPW}" >/dev/null 2>&1
+#chk $? "Unable to create pem cert ${pemcert}" 
+
+#openssl pkcs12 -in "${p12file}" -out "${pemkey}" -nocerts -nodes -passin "pass:${browserCertPW}" >/dev/null 2>&1
+#chk $? "Unable to create pem cert ${pemcert}" 
+
+drm -f "${tmpds}"
+
+if [ ${verbose} -gt 0 ]; then
+	certificateDetails=`tsocmd "RACDCERT ID(${user}) LIST(LABEL('${certlabel}'))"`
+	chk $? "Unable to list certificate label ${certlabel} for owner ${user}"
+	echo "${certificateDetails}" >&2
+fi
