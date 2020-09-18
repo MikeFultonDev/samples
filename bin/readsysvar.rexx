@@ -1,10 +1,10 @@
 /* REXX */
 /* 
- * Parse a JSON stream from z/OSMF for the SYSVAR call and print out the value of the passed in 'keyname'
+ * Parse a JSON stream from z/OSMF for the sysvar call and print out the value of the passed in 'keyname'
  * See: http://tech.mikefulton.ca/WebEnablementToolkit for details on the REXX JSON parsing services
  */
 
-trace 'r'
+trace 'o'
 Parse Arg keyname .
 
   if (keyname = '' | keyname = '?') then do
@@ -19,11 +19,12 @@ Parse Arg keyname .
     call SayErr 'readsysvar failed'
     return rc
   end
-  do el = 1 to json.SYS.0
-    entry = json.SYS.el.NAME
+  do el = 1 to json.SYSTEM_VARIABLE_LIST.0
+    entry = json.SYSTEM_VARIABLE_LIST.el.NAME
     if (entry = keyname) then do
-      say json.SYS.el.VALUE
+      say json.SYSTEM_VARIABLE_LIST.el.VALUE
+      return 0
     end
   end
-  call SayErr 'readsysvar: Unable to find keyname: ' || keyname
+  call SayErr 'Unable to find keyname: ' || keyname
   return 4

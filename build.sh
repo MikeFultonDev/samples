@@ -13,5 +13,5 @@ if [ $? -gt 0 ]; then
 fi
 sysvarloc="${readsysvar%/*}"
 
-cat "${sysvar}" "${readjson}" >"${sysvarloc}/readsysvar"
-
+cat "${readsysvar}" "${readjson}" >"${sysvarloc}/readsysvar"
+exit $?

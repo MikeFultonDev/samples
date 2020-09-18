@@ -98,19 +98,22 @@ else
 fi
 
 if [ "${sysval}" = '' ]; then
-	payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+	payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
+	rc=$?
+	if [ $rc -eq 0 ]; then
+		payload=`echo "${payload}" | readsysvar "${sysvar}"`
+		rc=$?
+	fi
+	if [ $rc -eq 0 ]; then
+		echo "${payload}"
+	fi
 else
 	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
-	payload=`echo ${request} | httpspost ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+	payload=`echo ${request} | httpspost ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
+	rc=$?
 fi
-rc=$?
 if [ ${verbose} -gt 0 ]; then
 	cat "${verboseFile}" >&2
 	rm -f "${verboseFile}"
 fi
-if [ $rc -gt 0 ]; then
-	echo "z/OSMF system variable call failed" >&2      
-	exit 8
-fi
-ebcdic_payload=`echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047`
-echo "${ebcdic_payload}"
+exit $rc
