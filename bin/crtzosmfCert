@@ -19,7 +19,7 @@ Syntax() {
 	echo "    <browser-cert-pw> is the browser certificate password (defaults to ${browserCertPW})" >&2
 	echo "Example:" >&2
 	echo "  Create a z/OSMF certificate and create: " >&2  
-	echo "    P12 format certificate $HOME/${certPrefix}.p12, with a password of mypassword" >&2
+	echo "    P12 format certificate $HOME/${certPrefix}-bin.p12, with a password of mypassword" >&2
 	echo "    PEM certificate $HOME/${certPrefix}-crt.pem" >&2
 	echo "    PEM private key $HOME/${certPrefix}-key.pem" >&2
 	echo "  $0 -d $HOME -p mypassword" >&2
