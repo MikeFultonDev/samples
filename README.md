@@ -10,7 +10,7 @@ To use the browser certificate:
 - download it to your device, in binary format, then import it into your browser (For firefox, go to Preferences / Privacy and Security / View Certificates / Import)
 
 To use the pem certificate and key pair:
- - download the two files to your device, in binary format, then use them (For Python, see [xsysvar.py](./bin/xsysvsar.py) )
+ - download the two files to your device, in binary format, then use them (For Python, see [xsysvar.py](./bin/xsysvar.py) )
  
 To use the RACF certificate directly on z/OS:
  - specify the user, certificate label, and keyring in your request (For z/OS Toolkit, see [xsysvar](./bin/xsysvar) )
