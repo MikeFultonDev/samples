@@ -83,7 +83,7 @@ fi
 if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 	opts="-u ${USERNAME}:${PASSWORD}"
 else
-	opts='-l zosmf-certificate -r IBMUSER/ZOSMFCR'
+	opts='-l zosmfcert -r IBMUSER/ZOSMF'
 fi
 if [ ${verbose} -gt 0 ]; then
 	file="$RANDOM.$$.https.out"

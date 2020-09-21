@@ -2,10 +2,10 @@
 
 opts=''
 verbose=0
-certlabel='zosmf-certificate'
+certlabel='zosmfcert'
 certtitle='z/OSMF Certificate'
 user=$(hlq)
-userring='ZOSMFCR'
+userring='ZOSMF'
 zosmfca='zOSMFCA'
 browserCertPW='zosmfClientCert'
 browserCertDir='/tmp'
@@ -99,18 +99,24 @@ chk $? "Unable to refresh DIGTCERT and DIGTRING classes"
 issueTSO "RACDCERT ID(${user}) EXPORT(LABEL('${certlabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
 chk $? "Unable to export RACF certificate as DER encoded client certificate"
 
-p12file="${browserCertDir}/${certPrefix}.p12"
+p12binfile="${browserCertDir}/${certPrefix}-bin.p12"
 pemcert="${browserCertDir}/${certPrefix}-crt.pem"
 pemkey="${browserCertDir}/${certPrefix}-key.pem"
+sslout="${browserCertDir}/${certPrefix}-ssl.out"
+sslerr="${browserCertDir}/${certPrefix}-ssl.err"
 
-dcp -B "${tmpds}" "${p12file}"
+rm -f "${sslout}" "${sslerr}"
+
+dcp -B "${tmpds}" "${p12binfile}"
 chk $? "Unable to copy certificate ${tmpds}"
 
-#openssl pkcs12 -in "${p12file}" -out "${pemcert}" -clcerts -nokeys -passin "pass:${browserCertPW}" >/dev/null 2>&1
-#chk $? "Unable to create pem cert ${pemcert}" 
+openssl pkcs12 -in "${p12binfile}" -out "${pemcert}" -clcerts -nokeys -passin "pass:${browserCertPW}" >${sslout} 2>${sslerr}
+chk $? "Unable to create pem cert ${pemcert}. See ${sslout} and ${sslerr} for details" 
 
-#openssl pkcs12 -in "${p12file}" -out "${pemkey}" -nocerts -nodes -passin "pass:${browserCertPW}" >/dev/null 2>&1
-#chk $? "Unable to create pem cert ${pemcert}" 
+openssl pkcs12 -in "${p12binfile}" -out "${pemkey}" -nocerts -nodes -passin "pass:${browserCertPW}" >>${sslout} 2>>${sslerr}
+chk $? "Unable to create pem cert ${pemkey}. See ${sslout} and ${sslerr} for details" 
+
+rm -f "${sslout}" "${sslerr}"
 
 drm -f "${tmpds}"
 
