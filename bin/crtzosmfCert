@@ -14,7 +14,7 @@ certPrefix='zosmf'
 Syntax() {
 	echo "$0 [-v] [-d <browser-cert-directory>] [-p <browser-cert-pw>]" >&2
 	echo "  where: " >&2
-	echo "    -v : if specified, write information about the certificate to stderr" >&2
+	echo "    -v : if specified, write information about the certificate chain to stderr" >&2
 	echo "    <browser-cert-direcotyr> is the directory to write the exported browser certificate to (defaults to /tmp)" >&2
 	echo "    <browser-cert-pw> is the browser certificate password (defaults to ${browserCertPW})" >&2
 	echo "Example:" >&2
@@ -121,7 +121,7 @@ rm -f "${sslout}" "${sslerr}"
 drm -f "${tmpds}"
 
 if [ ${verbose} -gt 0 ]; then
-	certificateDetails=`tsocmd "RACDCERT ID(${user}) LIST(LABEL('${certlabel}'))"`
-	chk $? "Unable to list certificate label ${certlabel} for owner ${user}"
+	certificateDetails=`tsocmd "racdcert id(${user}) listchain(label('${certlabel}'))"`
+	chk $? "Unable to list certificate chain for label ${certlabel} for owner ${user}"
 	echo "${certificateDetails}" >&2
 fi

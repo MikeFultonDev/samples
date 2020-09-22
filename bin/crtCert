@@ -42,7 +42,7 @@ export X509DN_NOTBEFORE='TIME(00:00:00)'
 mydir=`abspath $0`
 
 subjectsdn=`racfSubjectsDN "${NAME}"`
-issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
+issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}')) KEYUSAGE(HANDSHAKE)"
 chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
 
 issueTSO "RACDCERT ALTER(LABEL('${LABEL}')) TRUST"
