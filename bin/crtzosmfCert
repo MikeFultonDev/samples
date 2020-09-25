@@ -10,6 +10,7 @@ zosmfca='zOSMFCA'
 browserCertPW='zosmfClientCert'
 browserCertDir='/tmp'
 certPrefix='zosmf'
+zosmfring='IZUKeyring.IZUDFLT'
 
 Syntax() {
 	echo "$0 [-v] [-d <browser-cert-directory>] [-p <browser-cert-pw>]" >&2
@@ -88,7 +89,7 @@ issueTSO "RACDCERT ID(${user}) ADDRING(${userring})"
 chk $? "Unable to add userring ${userring}"
 
 issueTSO "RACDCERT ID(${user}) CONNECT(ID(${user}) LABEL('${certlabel}') RING(${userring}) DEFAULT)"
-chk $? "Unable to connect ${certlabel} and ${userring}"
+chk $? "Unable to connect ${certlabel} and ${zosmfring}"
 
 issueTSO "RACDCERT ID(${user}) CONNECT(CERTAUTH LABEL('${zosmfca}') RING(${userring}))"
 chk $? "Unable to connect certauth ${zosmfca} and ${userring}"
@@ -96,19 +97,26 @@ chk $? "Unable to connect certauth ${zosmfca} and ${userring}"
 racfRefreshClasses "DIGTCERT DIGTRING"
 chk $? "Unable to refresh DIGTCERT and DIGTRING classes"
 
-issueTSO "RACDCERT ID(${user}) EXPORT(LABEL('${certlabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
-chk $? "Unable to export RACF certificate as DER encoded client certificate"
-
 p12binfile="${browserCertDir}/${certPrefix}-bin.p12"
+cabinfile="${browserCertDir}/${certPrefix}ca-bin.der"
 pemcert="${browserCertDir}/${certPrefix}-crt.pem"
 pemkey="${browserCertDir}/${certPrefix}-key.pem"
 sslout="${browserCertDir}/${certPrefix}-ssl.out"
 sslerr="${browserCertDir}/${certPrefix}-ssl.err"
 
-rm -f "${sslout}" "${sslerr}"
+issueTSO "RACDCERT ID(${user}) EXPORT(LABEL('${certlabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
+chk $? "Unable to export RACF certificate as DER encoded client certificate"
 
 dcp -B "${tmpds}" "${p12binfile}"
-chk $? "Unable to copy certificate ${tmpds}"
+chk $? "Unable to copy client certificate ${tmpds}"
+
+issueTSO "RACDCERT EXPORT(LABEL('${zosmfca}')) CERTAUTH DSN('${tmpds}') FORMAT(CERTDER)"
+chk $? "Unable to export RACF certificate as CERTDER encoded certificate authority"
+
+dcp -B "${tmpds}" "${cabinfile}"
+chk $? "Unable to copy certificate authority ${tmpds}"
+
+rm -f "${sslout}" "${sslerr}"
 
 openssl pkcs12 -in "${p12binfile}" -out "${pemcert}" -clcerts -nokeys -passin "pass:${browserCertPW}" >${sslout} 2>${sslerr}
 chk $? "Unable to create pem cert ${pemcert}. See ${sslout} and ${sslerr} for details" 
