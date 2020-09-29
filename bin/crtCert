@@ -1,6 +1,32 @@
 #!/bin/sh
 . generalfuncs
 . racffuncs
+while getopts ":vh?d:p:" opt; do
+	case ${opt} in
+		p )
+                   	browserCertPW=${OPTARG}
+                        ;;
+		d )
+                   	browserCertDir=${OPTARG}
+                        if [ -d "${browserCertDir}" ]; then
+                                echo "${browserCertDir} is not a valid directory." >&2
+                                Syntax
+                        fi
+                        ;;
+		v )
+                   	verbose=1
+                        opts="${opts} -v"
+			;;
+		\?)
+			if [ ${OPTARG} != "?" ] && [ ${OPTARG} != "h" ]; then
+				echo "Unknown Option: ${OPTARG}" >&2
+			fi
+			Syntax
+			exit 4
+			;;
+	esac
+done
+shift $(expr $OPTIND - 1 )
 
 if [ $# -lt 4 ]; then
 	echo "Syntax: $0 <cert-name> <cert-owner> <cert-label> <cert-auth-label> [<title>]" >&2
@@ -42,10 +68,10 @@ export X509DN_NOTBEFORE='TIME(00:00:00)'
 mydir=`abspath $0`
 
 subjectsdn=`racfSubjectsDN "${NAME}"`
-issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}')) KEYUSAGE(HANDSHAKE)"
+issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
 chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
 
-issueTSO "RACDCERT ALTER(LABEL('${LABEL}')) TRUST"
+issueTSO "RACDCERT ID(${OWNER}) ALTER(LABEL('${LABEL}')) TRUST"
 chk $? "Unable to mark certificate with label ${LABEL} as trusted"
 
 racfRefreshClasses "DIGTCERT"

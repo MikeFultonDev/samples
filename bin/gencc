@@ -1,0 +1,90 @@
+#!/bin/sh
+# Generate Client Certificate (gencc)
+#
+. generalfuncs
+. racffuncs
+
+dnTitle=''
+dnO=''
+dnOU=''
+force=false
+verbose=false
+while getopts ":vh?fT:O:U:" opt; do
+	case ${opt} in
+		T )
+                   	dnTitle=${OPTARG}
+                        ;;
+		O )
+                   	dnO=${OPTARG}
+                        ;;
+		U )
+                   	dnOU=${OPTARG}
+                        ;;
+		v )
+                   	verbose=true
+			;;
+		f )
+                   	force=true
+			;;
+		\?)
+			if [ ${OPTARG} != "?" ] && [ ${OPTARG} != "h" ]; then
+				echo "Unknown Option: ${OPTARG}" >&2
+			fi
+			Syntax
+			exit 4
+			;;
+	esac
+done
+shift $(expr $OPTIND - 1 )
+
+if [ $# -lt 4 ]; then
+	echo "Syntax: $0 [-vfT<title>O<org>U<org-unit>]* <cert-name> <cert-owner> <cert-label> <cert-auth-label>" >&2
+	echo "  where <cert-name> is the common name of the certificate" >&2
+	echo "  where <cert-owner> is the ID of the certificate owner" >&2
+	echo "  where <cert-label> is the certificate label to use" >&2
+	echo "  where <cert-auth-label> is the signing certificate label to use" >&2
+	echo "  and <title> is the optional certificate title" >&2
+	echo "  and <org> is the optional subject's X.509 distinguished name organization" >&2
+	echo "  and <org-unit> is the optional subject's X.509 distinguished name organizational unit" >&2
+	echo "Example:" >&2
+	echo "To re-create a certificate with name zosmfcc, owned by ibmuser, label 'zosmfclientcert', auth label zOSMFCA, and title 'z/OSMF Client Certificate'" >&2
+	echo " and print the certificate summary to stderr" >&2
+	echo "  $0 zosmfcc -vf '-Tz/OSMF Client Certificate' ibmuser 'zosmfclientcert' 'zOSMFCA'" >&2
+	echo "To delete this certificate:" >&2
+	echo "  tsocmd \"racdcert delete id(ibmuser) (label('zosmfclientcert'))\"" >&2
+	exit 4
+fi
+
+export NAME="$1"
+export OWNER="$2"
+export LABEL="$3"
+export AUTH_LABEL="$4"
+
+export X509DN_T="${dnT}"
+export X509DN_OU="${dnOU}"
+export X509DN_O="${dnO}"
+export X509DN_L=""
+export X509DN_SP=""
+export X509DN_C=""
+export X509DN_NOTAFTER='DATE()'
+export X509DN_NOTBEFORE='TIME(00:00:00)'
+
+mydir=`abspath $0`
+
+if ${force}; then
+	tsocmd "racdcert id(${OWNER}) delete (label('${LABEL}'))" >/dev/null 2>&1
+fi 
+subjectsdn=`racfSubjectsDN "${NAME}"`
+issueTSO "RACDCERT ID(${OWNER}) GENCERT ${subjectsdn} SIZE(2048) WITHLABEL('${LABEL}') SIGNWITH(CERTAUTH LABEL('${AUTH_LABEL}'))"
+chk $? "Unable to create certificate ${OWNER} with label ${LABEL} and signing certificate label ${AUTH_LABEL}"
+
+issueTSO "RACDCERT ID(${OWNER}) ALTER(LABEL('${LABEL}')) TRUST"
+chk $? "Unable to mark certificate with label ${LABEL} as trusted"
+
+racfRefreshClasses "DIGTCERT"
+chk $? "Unable to refresh DIGTCERT class"
+
+if ${verbose}; then
+	info=`tsocmd "racdcert id(${OWNER}) LIST(LABEL('${LABEL}')" 2>/dev/null`
+	echo "${info}" >&2
+fi

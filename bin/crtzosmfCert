@@ -11,6 +11,8 @@ browserCertPW='zosmfClientCert'
 browserCertDir='/tmp'
 certPrefix='zosmf'
 zosmfring='IZUKeyring.IZUDFLT'
+srvrcertlabel='DefaultzOSMFCert.IZUDFLT'
+srvruser='IZUSVR'
 
 Syntax() {
 	echo "$0 [-v] [-d <browser-cert-directory>] [-p <browser-cert-pw>]" >&2
@@ -80,10 +82,16 @@ chk $? "Unable to allocate temporary certificate dataset ${tmpds}"
 
 tsocmd "racdcert remove(id(${user}) label('${certlabel}') ring(${userring}))"  >/dev/null 2>&1
 tsocmd "racdcert id(${user}) delring(${userring})" >/dev/null 2>&1
-tsocmd "racdcert delete (label('${certlabel}'))" >/dev/null 2>&1
+tsocmd "racdcert id(${user}) delete (label('${certlabel}'))" >/dev/null 2>&1
+tsocmd "racdcert id(${srvruser}) delete (label('${srvrcertlabel}'))" >/dev/null 2>&1
 
-crtCert zosmfcc ibmuser "${certlabel}" "${zosmfca}" "${certtitle}"
-chk $? "Unable to create certificate"
+crtCert zosmfcc "${user}" "${certlabel}" "${zosmfca}" "${certtitle}"
+chk $? "Unable to create client certificate"
+
+hostname=`hostname`
+hostname='S0W1.CANLAB.IBM.COM'
+crtCert "${hostname}" "${srvruser}" "${srvrcertlabel}" "${zosmfca}" 
+chk $? "Unable to create server certificate"
 
 issueTSO "RACDCERT ID(${user}) ADDRING(${userring})"
 chk $? "Unable to add userring ${userring}"
