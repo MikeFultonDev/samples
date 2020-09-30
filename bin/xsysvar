@@ -82,8 +82,12 @@ fi
 
 if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 	opts="-u ${USERNAME}:${PASSWORD}"
+	cert='none'
 else
-	opts='-l zosmfcert -r IBMUSER/ZOSMF'
+	cert="z/OSMF Client Certificate"
+	ring="ZOSMF"
+	user="${USER}"
+	opts="-r ${user}/${ring}"
 fi
 if [ ${verbose} -gt 0 ]; then
 	file="$RANDOM.$$.https.out"
@@ -98,7 +102,7 @@ else
 fi
 
 if [ "${sysval}" = '' ]; then
-	payload=`httpsget ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
+	payload=`httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
 	rc=$?
 	if [ $rc -eq 0 ]; then
 		payload=`echo "${payload}" | readsysvar "${sysvar}"`
@@ -109,7 +113,7 @@ if [ "${sysval}" = '' ]; then
 	fi
 else
 	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
-	payload=`echo ${request} | httpspost ${opts} "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
+	payload=`echo ${request} | httpspost ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" | iconv -f ISO8859-1 -t IBM-1047`
 	rc=$?
 fi
 if [ ${verbose} -gt 0 ]; then

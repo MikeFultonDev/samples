@@ -1,18 +1,22 @@
 #!/bin/sh
+#
+# Generate z/OSMF Certificate Authority, Server Certificate, Client Certificate, put them in rings, and export them for use in browser and client tools
+#
 
-opts=''
-verbose=0
-certlabel='zosmfcert'
-certtitle='z/OSMF Certificate'
-user=$(hlq)
-userring='ZOSMF'
-zosmfca='zOSMFCA'
+verbose=false
+clientLabel='z/OSMF Client Certificate'
+serverLabel='DefaultzOSMFCert.IZUDFLT'
+caLabel='zOSMFCA'
+clientName='zosmfcc'
+caName='z/OSMF CertAuth for Security Domain'
+clientUser=$(hlq)
+clientRing='ZOSMF'
 browserCertPW='zosmfClientCert'
 browserCertDir='/tmp'
 certPrefix='zosmf'
-zosmfring='IZUKeyring.IZUDFLT'
-srvrcertlabel='DefaultzOSMFCert.IZUDFLT'
-srvruser='IZUSVR'
+zosmfRing='IZUKeyring.IZUDFLT'
+serverUser='IZUSVR'
+zosmfOU='IZUDFLT'
 
 Syntax() {
 	echo "$0 [-v] [-d <browser-cert-directory>] [-p <browser-cert-pw>]" >&2
@@ -42,8 +46,7 @@ while getopts ":vh?d:p:" opt; do
 			fi
 			;;
                 v )
-                        verbose=1
- 			opts="${opts} -v"
+                        verbose=true
           		;;
 	        \?)
 	                if [ ${OPTARG} != "?" ] && [ ${OPTARG} != "h" ]; then
@@ -66,7 +69,7 @@ if [ $? -gt 0 ]; then
 	echo "Ensure zospm/bin is in your PATH" >&2
 	Syntax
 fi
-loc=`whence crtCert`
+loc=`whence genzosmfcert`
 if [ $? -gt 0 ]; then
 	echo "Ensure samples/bin are in your PATH" >&2
 	Syntax
@@ -80,29 +83,40 @@ drm -f "${tmpds}"
 dtouch -tseq "${tmpds}"
 chk $? "Unable to allocate temporary certificate dataset ${tmpds}"
 
-tsocmd "racdcert remove(id(${user}) label('${certlabel}') ring(${userring}))"  >/dev/null 2>&1
-tsocmd "racdcert id(${user}) delring(${userring})" >/dev/null 2>&1
-tsocmd "racdcert id(${user}) delete (label('${certlabel}'))" >/dev/null 2>&1
-tsocmd "racdcert id(${srvruser}) delete (label('${srvrcertlabel}'))" >/dev/null 2>&1
+tsocmd "racdcert id(${serverUser}) delring(${zosmfRing})" >/dev/null 2>&1
+issueTSO "racdcert id(${serverUser}) addring(${zosmfRing})"
 
-crtCert zosmfcc "${user}" "${certlabel}" "${zosmfca}" "${certtitle}"
-chk $? "Unable to create client certificate"
+tsocmd "racdcert id(${clientUser}) delring(${clientRing})" >/dev/null 2>&1
+issueTSO "racdcert id(${clientUser}) addring(${clientRing})"
 
-hostname=`hostname`
-hostname='S0W1.CANLAB.IBM.COM'
-crtCert "${hostname}" "${srvruser}" "${srvrcertlabel}" "${zosmfca}" 
-chk $? "Unable to create server certificate"
+genca -f "-U${zosmfOU}" "${caName}" "${caLabel}"
+chk $? "Unable to re-create certificate authority: ${caLabel}"
 
-issueTSO "RACDCERT ID(${user}) ADDRING(${userring})"
-chk $? "Unable to add userring ${userring}"
+gensc -f "-U${zosmfOU}" -OIBM "${serverUser}" "${serverLabel}" "${caLabel}"
+chk $? "Unable to re-create server certificate: ${serverLabel}"
 
-issueTSO "RACDCERT ID(${user}) CONNECT(ID(${user}) LABEL('${certlabel}') RING(${userring}) DEFAULT)"
-chk $? "Unable to connect ${certlabel} and ${zosmfring}"
+gencc -f "${clientName}" "${clientUser}" "${clientLabel}" "${caLabel}"
+chk $? "Unable to re-create client certificate: ${clientLabel}"
 
-issueTSO "RACDCERT ID(${user}) CONNECT(CERTAUTH LABEL('${zosmfca}') RING(${userring}))"
-chk $? "Unable to connect certauth ${zosmfca} and ${userring}"
+issueTSO "RACDCERT ID(${serverUser}) CONNECT(CERTAUTH LABEL('${caLabel}') RING(${zosmfRing}))"
+chk $? "Unable to connect ${certlabel} and ${zosmfRing}"
 
-racfRefreshClasses "DIGTCERT DIGTRING"
+issueTSO "RACDCERT ID(${serverUser}) CONNECT(ID(${serverUser}) LABEL('${serverLabel}') RING(${zosmfRing}) DEFAULT)"
+chk $? "Unable to connect ${certlabel} and ${zosmfRing}"
+
+issueTSO "RACDCERT ID(${clientUser}) CONNECT(ID(${clientUser}) LABEL('${clientLabel}') RING(${clientRing}) DEFAULT)"
+chk $? "Unable to connect ${clientLabel} and ${clientRing}"
+
+issueTSO "RACDCERT ID(${clientUser}) CONNECT(CERTAUTH LABEL('${caLabel}') RING(${clientRing}))"
+chk $? "Unable to connect ${clientLabel} and ${clientRing}"
+
+racfPermitUsers "FACILITY" "IRR.DIGTCERT.LISTRING" "UPDATE" "${serverUser}"
+chk $? "Unable to permit ${serverUser} to update access to keyring"
+
+racfPermitUsers "FACILITY" "IRR.DIGTCERT.GENCERT" "CONTROL" "${serverUser}"
+chk $? "Unable to permit ${serverUser} to update access to keyring"
+
+racfRefreshClasses "DIGTCERT DIGTRING FACILITY"
 chk $? "Unable to refresh DIGTCERT and DIGTRING classes"
 
 p12binfile="${browserCertDir}/${certPrefix}-bin.p12"
@@ -112,13 +126,13 @@ pemkey="${browserCertDir}/${certPrefix}-key.pem"
 sslout="${browserCertDir}/${certPrefix}-ssl.out"
 sslerr="${browserCertDir}/${certPrefix}-ssl.err"
 
-issueTSO "RACDCERT ID(${user}) EXPORT(LABEL('${certlabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
+issueTSO "RACDCERT ID(${clientUser}) EXPORT(LABEL('${clientLabel}')) DSN('${tmpds}') FORMAT(PKCS12DER) PASSWORD('${browserCertPW}')"
 chk $? "Unable to export RACF certificate as DER encoded client certificate"
 
 dcp -B "${tmpds}" "${p12binfile}"
 chk $? "Unable to copy client certificate ${tmpds}"
 
-issueTSO "RACDCERT EXPORT(LABEL('${zosmfca}')) CERTAUTH DSN('${tmpds}') FORMAT(CERTDER)"
+issueTSO "RACDCERT EXPORT(LABEL('${caLabel}')) CERTAUTH DSN('${tmpds}') FORMAT(CERTDER)"
 chk $? "Unable to export RACF certificate as CERTDER encoded certificate authority"
 
 dcp -B "${tmpds}" "${cabinfile}"
@@ -136,8 +150,11 @@ rm -f "${sslout}" "${sslerr}"
 
 drm -f "${tmpds}"
 
-if [ ${verbose} -gt 0 ]; then
-	certificateDetails=`tsocmd "racdcert id(${user}) listchain(label('${certlabel}'))"`
-	chk $? "Unable to list certificate chain for label ${certlabel} for owner ${user}"
+if ${verbose}; then
+	certificateDetails=`tsocmd "racdcert id(${clientUser}) listchain(label('${clientLabel}'))"`
+	chk $? "Unable to list certificate chain for label ${clientLabel} for owner ${clientUser}"
+	echo "${certificateDetails}" >&2
+	certificateDetails=`tsocmd "racdcert id(${serverUser}) listchain(label('${serverLabel}'))"`
+	chk $? "Unable to list certificate chain for label ${serverLabel} for owner ${serverUser}"
 	echo "${certificateDetails}" >&2
 fi
