@@ -19,3 +19,12 @@ To use the RACF certificate directly on z/OS:
  - specify the user, certificate label, and keyring in your request (For z/OS Toolkit, see [xsysvar](./bin/xsysvar) )
  
 These examples require the [zospm tools](https://github.com/zospm/zospm)
+
+## xsysvar
+This script shows how to drive the z/OSMF system variable services either with userid/password or with a client certificate on z/OS.
+The syntax is straight-forward. To display the value for the variable 'fred':
+ - xsysvar fred 
+To set the value of the variable 'fred' to 'pink':
+ - xsysvar fred=pink
+
+As with crtzosmfCert, xsysvar requires [zospm tools](https://github.com/zospm/zospm)
