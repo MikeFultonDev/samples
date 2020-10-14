@@ -100,23 +100,28 @@ else
 	verboseFile=''
 fi
 
+pipe="$RANDOM.$$.https.pipe"
+if [ "$TMP" != '' ]; then
+	pipeFile="${TMP}/${pipe}"
+else
+	pipeFile="/tmp/${pipe}"	
+fi
+
+# Use a named pipe so if the httpsget/httpsput fails, will get a non-zero RC
+rm -f ${pipeFile}; mkfifo ${pipeFile}
 if [ "${sysval}" = '' ]; then
-	# Use a named pipe so if the httpsget fails, will get a non-zero RC
-	rm -f pipe; mkfifo pipe
-	iconv -f ISO8859-1 -t IBM-1047 < pipe | readsysvar "${sysvar}" &
-	httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > pipe
+	iconv -f ISO8859-1 -t IBM-1047 < ${pipeFile} | readsysvar "${sysvar}" &
+	httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > ${pipeFile}
 	rc=$?
 else
 	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
-	payload=`echo ${request} | httpspost ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+	iconv -f ISO8859-1 -t IBM-1047 < ${pipeFile} &
+	echo ${request} | httpspost ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > ${pipeFile}
 	rc=$?
-	if [ $rc -eq 0 ]; then
-		payload=`echo "${payload}" | iconv -f ISO8859-1 -t IBM-1047`
-		rc=$?
-	fi
 fi
 if ${verbose}; then
 	cat "${verboseFile}" >&2
 	rm -f "${verboseFile}"
 fi
+rm -f "${pipeFile}"
 exit $rc
