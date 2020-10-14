@@ -70,8 +70,6 @@ sysname=`sysvar SYSNAME`
 sysplexname=`sysvar SYSPLEX`
 zosmfport=`zosmfport`
 
-#set -x
-
 arg="$1"
 sysval="${arg#*=}"
 if [ "${sysval}" = "$1" ]; then
@@ -102,32 +100,12 @@ else
 	verboseFile=''
 fi
 
-err="$RANDOM.$$.https.err"
-out="$RANDOM.$$.https.out"
-if [ "$TMP" != '' ]; then
-	outFile="${TMP}/${out}"
-else
-	outFile="/tmp/${out}"	
-fi
-
-opts="${opts} -o ${outFile}"
-
 if [ "${sysval}" = '' ]; then
-	payload=`httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
+	# Use a named pipe so if the httpsget fails, will get a non-zero RC
+	rm -f pipe; mkfifo pipe
+	iconv -f ISO8859-1 -t IBM-1047 < pipe | readsysvar "${sysvar}" &
+	httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > pipe
 	rc=$?
-	if [ $rc -eq 0 ]; then
-		chtag -t -c "ISO8859-1" "${outFile}"
-		newlineout=`cat "${outFile}"`
-		sysvarpayload=`echo "${newlineout}" | readsysvar "${sysvar}"`
-		rc=$?
-		if [ $rc -lt 8 ]; then
-			echo "${sysvarpayload}"
-			rm -f "${outFile}"
-		else 
-			echo "readsysvar failed. Raw output written to ${outFile}" >&2
-			echo "${payload}" >"${outFile}"
-		fi
-	fi
 else
 	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
 	payload=`echo ${request} | httpspost ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}"`
