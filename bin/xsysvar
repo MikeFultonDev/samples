@@ -99,8 +99,8 @@ if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 	opts="-u ${USERNAME}:${PASSWORD}"
 	cert='none'
 else
-	cert="z/OSMF Client Certificate"
-	ring="ZOSMF"
+	cert="z/OSMF Client Cert: ${USER}"
+	ring="zOSMFClientRing${USER}"
 	user="${USER}"
 	opts="-r ${user}/${ring}"
 fi
