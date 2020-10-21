@@ -100,7 +100,10 @@ gencc "${genOpts}" "${clientName}" "${clientUser}" "${clientLabel}" "${caLabel}"
 chk $? "Unable to create client certificate: ${clientLabel}"
 
 issueTSO "RACDCERT CONNECT(ID(${clientUser}) LABEL('${clientLabel}') RING(${clientRing}) DEFAULT) ID(${ringOwner})"
-chk $? "Unable to create client certificate: ${clientLabel}"
+chk $? "Unable to connect client certificate: ${clientLabel} to ring ${clientRing}"
+
+issueTSO "RACDCERT CONNECT(CERTAUTH LABEL('${caLabel}') RING(${clientRing})) ID(${ringOwner})"
+chk $? "Unable to connect CA label: ${caLabel} to ring ${clientRing}"
 
 prefix="${browserCertDir}/${certPrefix}-${clientUser}"
 p12binfile="${prefix}-bin.p12"
