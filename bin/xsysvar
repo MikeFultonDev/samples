@@ -1,21 +1,27 @@
 #!/bin/sh
 #
-# Get (or Set) a z/OSMF System Variable
+# Get, Set, or Delete a z/OSMF System Variable
 # See https://tech.mikefulton.ca/ZOSMFSystemVariableAPIs for details on the underlying z/OSMF APIs
-# This example uses httpsget. See Syntax for details
 #
 Syntax() {
-	echo "$0 [-v] <var>[=<val>]" >&2
-	echo "  Where <var> is the z/OSMF System Varaible to get or set" >&2
+	echo "$0 [-v|-d|-?] [<var>][=<val>]" >&2
+	echo "  Where <var> is the z/OSMF System Variable to get, set or delete." >&2
 	echo "  If <val> is specified, <var> will be set to <val>" >&2
 	echo "  If <val> is not specified, the current value of <var> will be written to stdout" >&2
+	echo "  If <var> is not specified, all variables will be listed" >&2
+	echo "  If -d is specified, <var> will be deleted" >&2
 	echo "  If -v is specified, verbose network tracing will be written to stderr" >&2
+	echo "  If -? is specified, this syntax will be printed" >&2
 	echo "Example: Set the variable myappport to 2020" >&2
 	echo " $0 myappport=2020" >&2
 	echo "Example: Print the value of myappport" >&2
 	echo " $0 myappport" >&2
+	echo "Example: Delete the variable myappport" >&2
+	echo " $0 -d myappport" >&2
+	echo "Example: List all z/OSMF System Variables" >&2
+	echo " $0" >&2
 	echo "Note:" >&2
-	echo "You need httpsget to run this code. You can get the latest version from: https://github.com/zospm/zospm/blob/main/bin/httpsget" >&2
+	echo "You need httpsget, httpspost, httpsdelete to run this code. You can get the latest version from: https://github.com/zospm/zospm" >&2
 }
 
 zosmfport() {
@@ -32,10 +38,14 @@ zosmfport() {
 
 opts=""         	
 verbose=false
-while getopts ":v" opt; do
+delete=false
+while getopts ":vd" opt; do
 	case ${opt} in
 		v )
 			verbose=true
+			;;
+		d )
+			delete=true
 			;;
 		\?)         
 			if [ ${OPTARG} != "?" ]; then
@@ -48,7 +58,7 @@ while getopts ":v" opt; do
 done    	
 shift $(expr $OPTIND - 1 )
 
-if [ $# -eq 0 ]; then
+if [ $# -gt 1 ]; then
   Syntax
   exit 4
 fi
@@ -79,12 +89,18 @@ else
 	sysvar="${arg%%=*}"
 fi
 
+if [ "${sysvar}" = '' ] && ${delete}; then
+	echo "You have to specify a variable to delete when using -d" >&2
+	Syntax
+	exit 8
+fi
+
 if [ "${USERNAME}" != '' ] && [ "${PASSWORD}" != '' ]; then
 	opts="-u ${USERNAME}:${PASSWORD}"
 	cert='none'
 else
-	cert="z/OSMF Client Certificate"
-	ring="ZOSMF"
+	cert="z/OSMF Client Cert: ${USER}"
+	ring="zOSMFClientRing${USER}"
 	user="${USER}"
 	opts="-r ${user}/${ring}"
 fi
@@ -107,11 +123,17 @@ else
 	pipeFile="/tmp/${pipe}"	
 fi
 
-# Use a named pipe so if the httpsget/httpsput fails, will get a non-zero RC
+# Use a named pipe so if the httpsget/httpsput/httpspost/httpsdelete fails, will get a non-zero RC
 rm -f ${pipeFile}; mkfifo ${pipeFile}
 if [ "${sysval}" = '' ]; then
-	iconv -f ISO8859-1 -t IBM-1047 < ${pipeFile} | readsysvar "${sysvar}" &
-	httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > ${pipeFile}
+	if ${delete}; then
+		request=`echo "[\"${sysvar}\"]" | iconv -f IBM-1047 -t ISO8859-1`
+		iconv -f ISO8859-1 -t IBM-1047 < ${pipeFile} &
+		echo ${request} | httpsdelete ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > ${pipeFile}
+	else
+		iconv -f ISO8859-1 -t IBM-1047 < ${pipeFile} | readsysvar "${sysvar}" &
+		httpsget ${opts} "-l" "${cert}" "https://127.0.0.1:${zosmfport}/zosmf/variables/rest/1.0/systems/${sysplexname}.${sysname}" > ${pipeFile}
+	fi
 	rc=$?
 else
 	request=`echo "{\"system-variable-list\":[{\"name\":\"${sysvar}\",\"value\":\"${sysval}\",\"description\":\"\"}]}'" | iconv -f IBM-1047 -t ISO8859-1`
