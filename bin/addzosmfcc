@@ -7,7 +7,6 @@ verbose=false
 force=false
 clientLabel='z/OSMF Client Cert:'
 clientRing='zOSMFClientRing'
-caLabel='zOSMFCA'
 clientName='zosmfcc'
 clientUser=''
 browserCertPW='zosmfClientCert'
@@ -17,12 +16,13 @@ certPrefix='zosmf'
 genOpts=''
 
 Syntax() {
-	echo "$0 [-vf] [-d <browser-cert-directory>] [-p <browser-cert-pw>] <user>" >&2
+	echo "$0 [-vf] [-d <browser-cert-directory>] [-p <browser-cert-pw>] <ca-label> <user>" >&2
 	echo "  where: " >&2
 	echo "    -v : if specified, write information about the certificate chain to stderr" >&2
 	echo "    -f : if specified, delete the certificate first" >&2
 	echo "    <browser-cert-directory> is the directory to write the exported browser certificate to (defaults to /tmp)" >&2
 	echo "    <browser-cert-pw> is the browser certificate password (defaults to ${browserCertPW})" >&2
+	echo "    <ca-label> is the CA label used to sign the certificate" >&2
 	echo "    <user> is the user to create a certificate for" >&2
 	echo "Example:" >&2
 	echo "  Create a z/OSMF client certificate and create: " >&2  
@@ -63,11 +63,12 @@ while getopts ":vfh?d:p:" opt; do
 done
 shift $(expr $OPTIND - 1 )
 	
-if [ $# -ne 1 ]; then
+if [ $# -ne 2 ]; then
 	Syntax
 	exit 4
 fi
-clientUser="$1"
+caLabel="$1"
+clientUser="$2"
 ringOwner="${clientUser}"
 
 clientLabel="${clientLabel} ${clientUser}"
