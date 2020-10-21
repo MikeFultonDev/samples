@@ -28,3 +28,4 @@ To set the value of the variable 'fred' to 'pink':
  - xsysvar fred=pink
 
 As with crtzosmfCert, xsysvar requires [zospm tools](https://github.com/zospm/zospm)
+
