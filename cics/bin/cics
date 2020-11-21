@@ -3,7 +3,15 @@
 # cics: start or stop a CICS server
 #
 # msf: ADCD system does not have DFHTEMP, DFHDMPA, DFHDMPB, DFHAUXT, DFHBUXT, DFHLRQ, DFHINTRA, DFHLCD, DFHGCD datasets as CICS${REGION} but just CICS
-set -x
+# msf: ADCD system does not DFHDBFK dataset
+# msf: Had to:
+# alu ibmuser omvs(noassizemax)
+#-and-
+#alu ibmuser omvs(memlimit(16G))
+#
+#because CICS needs at least 6GB above the bar and the default ADCD configuration only provides 2GB
+#
+#set -x
 
 REGION=TS55
 
@@ -38,56 +46,56 @@ PRINTER="--PRINTER=*"
 
 SYSABEND="--SYSABEND=*"
 
-SYSIN=<<zz
-TRTABSZ=64,                                                             00010000
-APPLID=(CICS${REGION},CICS${REGION})      APPLID CICSTS55 IS DEFAULT    00020000
-AICONS=AUTO                               MVS CONSOLE SUPPORT           00030000
-AUXTR=OFF                                 TURN OFF AUX TRACE            00040000
-AUXTRSW=NEXT                              ROTATE TO NEXT WHEN FULL      00050000
-CICSSVC=216                               SVC NUMBER FOR CICS           00060000
-CPSMCONN=NO                                                             00061003
-EDSALIM=100M                              FOR PR JVM                    00070000
-DSALIM=7M                                                               00080000
-FEPI=YES                                  START FEPI INTERFACE          00090000
-USSHOME=/usr/lpp/cicsts/cicsts55                                        00100002
-USSCONFIG=/usr/lpp/cicsts/cicsts55/dfhconfig                            00110002
-GMTEXT='WELCOME TO CICS TS 5.5'                                         00111000
-GRPLIST=(XYZLIST)                         USE CICS LOGGER OFF           00112000
-GTFTR=ON                                  GTF TRACE ON                  00120000
-IRCSTRT=NO                                DO NOT START IRC AUTOMATICALLY00130000
-ISC=NO                                    DO NOT INCLUDE ISC/MRO        00140000
-KEYRING=CICSRNG                                                         00140106
-PLTPI=YES                                                               00141004
-PLTSD=SD                                                                00142004
-RLS=NO                                    NO RLS SUPPORT YET            00150000
-GMTRAN=CESN                                                             00151003
-SEC=YES                                                                 00152003
-XTRAN=NO                                                                00153003
-XCMD=NO                                                                 00154003
-XDCT=NO                                                                 00155003
-XFCT=NO                                                                 00156003
-XHFS=NO                                                                 00157003
-XJCT=NO                                                                 00158003
-XPPT=NO                                                                 00159003
-XPCT=NO                                                                 00159103
-XPSB=NO                                                                 00159203
-XPTKT=NO                                                                00159303
-XRES=NO                                                                 00159403
-SIT=6$                                    USE SUPPLIED SIT 6$           00170000
-STATRCD=OFF                               RECORDS STATISTICS TO SMF     00180000
-SYSIDNT=S720                              SYSIDNT IS S710               00190000
-SPCTRSO=(1,2)                             TRACE ON SOCKET DOMAIN        00200000
-SPCTRWB=(1,2)                             TRACE WEB INTERFACE           00210000
-TCPIP=YES                                 FOR TCPIP & IIOP SERVICES     00220003
-FCT=NO,                                                                 00230000
-TCT=NO,                                                                 00240000
-SRT=1$,                                   ADD RECOVERY                  00250000
-PGRET=P/,                                                               00260000
-PGPURGE=T/,                                                             00270000
-PGCOPY=C/,                                                              00280000
-PGCHAIN=X/,                                                             00290000
+SYSIN="
+TRTABSZ=64,
+APPLID=(CICS${REGION},CICS${REGION})      APPLID CICSTS55 IS DEFAULT
+AICONS=AUTO                               MVS CONSOLE SUPPORT
+AUXTR=OFF                                 TURN OFF AUX TRACE
+AUXTRSW=NEXT                              ROTATE TO NEXT WHEN FULL
+CICSSVC=216                               SVC NUMBER FOR CICS
+CPSMCONN=NO                               
+EDSALIM=100M                              FOR PR JVM
+DSALIM=7M                                
+FEPI=YES                                  START FEPI INTERFACE
+USSHOME=/usr/lpp/cicsts/cicsts55
+USSCONFIG=/usr/lpp/cicsts/cicsts55/dfhconfig
+GMTEXT='WELCOME TO CICS TS 5.5'
+GRPLIST=(XYZLIST)                         USE CICS LOGGER OFF
+GTFTR=ON                                  GTF TRACE ON
+IRCSTRT=NO                                DO NOT START IRC AUTOMATICALLY
+ISC=NO                                    DO NOT INCLUDE ISC/MRO
+KEYRING=CICSRNG                                                
+PLTPI=YES                                                     
+PLTSD=SD                                                     
+RLS=NO                                    NO RLS SUPPORT YET 
+GMTRAN=CESN                                                 
+SEC=YES                                                    
+XTRAN=NO                                                  
+XCMD=NO                                                  
+XDCT=NO                                                 
+XFCT=NO                                                
+XHFS=NO                                               
+XJCT=NO                                              
+XPPT=NO                                             
+XPCT=NO                                            
+XPSB=NO                                           
+XPTKT=NO                                         
+XRES=NO                                         
+SIT=6$                                    USE SUPPLIED SIT 6$ 
+STATRCD=OFF                               RECORDS STATISTICS TO SMF
+SYSIDNT=S720                              SYSIDNT IS S710
+SPCTRSO=(1,2)                             TRACE ON SOCKET DOMAIN
+SPCTRWB=(1,2)                             TRACE WEB INTERFACE 
+TCPIP=YES                                 FOR TCPIP & IIOP SERVICES
+FCT=NO,                                                           
+TCT=NO,                                                          
+SRT=1$,                                   ADD RECOVERY          
+PGRET=P/,                                                      
+PGPURGE=T/,                                                   
+PGCOPY=C/,                                                   
+PGCHAIN=X/,                                                 
 .END      
-zz
+"
 
 echo "${SYSIN}" | mvscmdauth --pgm=DFHSIP --args="START=INITIAL,SYSIN" --SYSIN=stdin \
   "${STEPLIB}" "${DFHRPL}" "${DFHCSD}" "${DFHCMACD}" "${DFHDBFK}" "${DFHLRQ}" \

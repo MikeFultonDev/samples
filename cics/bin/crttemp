@@ -1,20 +1,19 @@
 #!/bin/sh
-set -x
+#set -x
 #
 # Create VSAM temporary dataset, if it does not exist
 #
-REGION=TS55
+REGION=NEW 
 DFHTEMP="${DFH_HLQ}.CNTL.CICS${REGION}.DFHTEMP"
 
-SYSIN=<<zz
+IN="
    DEFINE CLUSTER(NAME(${DFHTEMP}) -
           RECORDSIZE(4089,4089)            -                      
           RECORDS(200)                     -
           NONINDEXED                       -
           CONTROLINTERVALSIZE(4096)        -
-          SHAREOPTIONS(2 3)                -
-          VOLUMES(B4C551))                 -
+          SHAREOPTIONS(2 3))               -
         DATA(NAME(${DFHTEMP}.DATA) -
           UNIQUE)
-zz
-echo "${SYSIN}" | mvscmdauth --pgm=IDCAMS --sysprint=* --sysin=stdin
+"
+echo "${IN}" | mvscmdauth --pgm=IDCAMS --sysprint=* --sysin=stdin

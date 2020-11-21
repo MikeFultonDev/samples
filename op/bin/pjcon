@@ -1,0 +1,76 @@
+#!/bin/sh
+#
+# pjcon: print console output specific to a job
+# For the SYSLOG record layout, see: SYS1.MODGEN(IHAHCLOG) 
+#
+#HCL      DSECT                    HARDCOPY LOG RECORD                   
+#HCLHEAD  EQU   *                  HEADER INFORMATION                    
+#HCLRECID DS    0CL2               RECORD ID                             
+#HCLRECTP DS    C                  RECORD TYPE                           
+#HCLWTO   EQU   C'N'               SINGLE-LINE MESSAGE                   
+#HCLWTOR  EQU   C'W'               SINGLE-LINE MESSAGE WITH REPLY        
+#HCLMLWTO EQU   C'M'               FIRST LINE OF A MULTI-LINE MESSAGE    
+#HCLLOG   EQU   C'O'               LOG COMMAND INPUT                     
+#HCLOTHER EQU   C'X'               ENTRY FROM A SOURCE OTHER THAN       *
+#                                  HARDCOPY OR LOG COMMAND               
+#HCLSPLIT EQU   C'S'               CONTINUATION OF PREVIOUS LINE         
+#HCLLABEL EQU   C'L'               LABEL LINE OF A MULTI-LINE MESSAGE    
+#HCLDATA  EQU   C'D'               DATA LINE OF A MULTI-LINE MESSAGE  
+#HCLDTEND EQU   C'E'               DATA/END LINE OF A MULTI-LINE MESSAGE 
+#         SPACE                                                          
+#HCLREQTP DS    C                  REQUEST TYPE                          
+#HCLCMD   EQU   C'C'               COMMAND ISSUED BY OPERATOR            
+#HCLRESP  EQU   C'R'               COMMAND RESPONSE                      
+#HCLINTNL EQU   C'I'               INTERNAL ISSUED COMMAND      @ZA79240 
+
+Syntax() {
+	echo "$0 [-v?hrldwmya] <job-id>" >&2
+	echo "  Filter the console log from pcon (by option, if specified)" >&2
+	echo "  then filter output to only show the output for the specified job" >&2
+}
+
+opts='-r'
+while getopts ":vrldwmya" opt; do
+	case ${opt} in
+		r|l|d|w|m|y|a )
+                   	opts="-${opt}"
+                        ;;
+		v )
+                   	verbose=true
+                        ;;
+		\?)
+                   	if [ ${OPTARG} != "?" ] && [ ${OPTARG} != "h" ]; then
+                                echo "Unknown Option: ${OPTARG}" >&2
+                        fi
+                        Syntax
+                        exit 4
+                        ;;
+	esac
+done
+shift $(expr $OPTIND - 1 )
+
+if [ $# -lt 1 ]; then
+	echo "Need to specify the job to filter on. " >&2
+	Syntax  
+	exit 8
+fi
+if [ $# -gt 1 ]; then
+	echo "Only one job to filter on can be specified. " >&2
+	Syntax  
+	exit 8
+fi
+
+job="$1"
+output=`pcon ${opts}`
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+echo "${output}" | awk -vjob="${job}" '
+	BEGIN { trace=0 }
+	/^O|^M|^N|^W|^X/ { if ($6 == job) { trace=1; print; } else { trace=0; }  }
+	/^S|^L|^E|^D/  { if (trace) { print; } }
+	'
+
+exit 0

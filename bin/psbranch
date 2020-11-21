@@ -1,0 +1,24 @@
+#!/bin/sh
+function parentProcess {
+	child="$1"
+	echo "${processList}" | awk -v child=${child} ' 
+		BEGIN { ppid=1 } 
+		{ if ($1 == child) { ppid=$2; } } 
+		END { print ppid }
+	'
+}
+
+if [ $# -ne 1 ]; then
+	echo "Syntax: $0 <pid>" >&2
+	echo "  where <pid> is the process to show the process branch list for" >&2
+	exit 4
+fi
+		
+process=$1
+processList=`ps -A -opid,ppid | tail +2`
+ps -f -p "${process}"
+while [ ${process} -ne 1 ]; do
+	process=`parentProcess "${process}"`
+	ps -f -p "${process}" | tail +2
+done
+	
