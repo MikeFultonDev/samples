@@ -1,0 +1,100 @@
+#!/bin/sh
+#set -x
+
+createISPFEnvironment() {
+	prof="$1"
+	tlib="$2"
+	tbl="$3"
+	ismf_hlq="$4"
+	ispf_hlq="$5"
+
+	datasets="${prof} ${tlib} ${tbl}"
+
+	for dataset in ${datasets}; do
+		dtouch -rfb "${dataset}"
+		rc=$?
+		if [ ${rc} -gt 0 ]; then
+			echo "Unable to allocate temporary dataset ${dataset}." >&2
+			return ${rc}
+		fi
+	done
+
+	STEPLIB=${ismf_hlq}.DGTLLIB:${ispf_hlq}.SISPLOAD
+	ISPF_DDNAMES="--steplib=${ismf_hlq}.DGTLLIB:${ispf_hlq}.SISPLOAD \
+                      --ispplib=${ismf_hlq}.DGTPLIB:${ispf_hlq}.SISPPENU \
+                      --ispmlib=${ismf_hlq}.DGTMLIB:${ispf_hlq}.SISPMENU \
+                      --ispslib=${ispf_hlq}.SISPSENU:${ismf_hlq}.DGTSLIB \
+	              --isptlib=${tlib}:${tbl}:${ispf_hlq}.SISPTENU:${ismf_hlq}.DGTTLIB \
+                      --sysexec=${ismf_hlq}.DGTCLIB:${ispf_hlq}.SISPCLIB \
+	              --isptabl=${tbl} --ispprof=${prof} \
+                      --sysprint=* --systsprt=*"
+
+	echo "${ISPF_DDNAMES}"
+	return 0
+}
+
+deleteISPFEnvironment() {
+	datasets="$*"
+	for dataset in ${datasets}; do
+		drm "${dataset}"
+		rc=$?
+		if [ ${rc} -gt 0 ]; then
+			echo "Unable to delete temporary dataset ${dataset}." >&2
+			return ${rc}
+		fi
+	done
+	return 0
+}
+
+if [ $# -gt 0 ]; then
+	echo "Syntax: $0 " >&2
+	echo "  Run the ISMF command, read from stdin" >&2
+	echo "  Write output to stdout" >&2
+	echo "Defaults:" >&2
+	echo "  ISMF_HLQ: SYS1" >&2
+	echo "  ISPF_HLQ: ISP" >&2
+	echo "To override, export the variable first, e.g. export ISMF_HLQ=MYHLQ" >&2
+	echo "Example: Display the Configuration for SCDS at SYS1.S0W1.SCDS:" >&2
+	echo "echo \"CMD(ACBQBAB1 DISPLAY SCDS('SYS1.S0W1.SCDS'))\" | ismfcmd" >&2
+	exit 4
+fi
+
+# Read stdin into 'input' variable
+input=`cat`
+
+if [ "${ISMF_HLQ}" = '' ]; then
+	ISMF_HLQ=SYS1
+fi
+if [ "${ISPF_HLQ}" = '' ]; then
+	ISPF_HLQ=ISP
+fi
+
+hlq=`hlq`
+TEMP_PROF=`mvstmp ${hlq}.PROF`
+TEMP_TLIB=`mvstmp ${hlq}.TLIB`
+TEMP_TBL=`mvstmp ${hlq}.TBL`
+
+ddnames=`createISPFEnvironment ${TEMP_PROF} ${TEMP_TLIB} ${TEMP_TBL} ${ISMF_HLQ} ${ISPF_HLQ}`
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=dummy ${ddnames} <<zzz
+  ISPSTART +
+  ${input} +
+  BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)
+zzz
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "mvscmdauth failed with ${rc} running ISPF command" >&2
+	exit $rc
+fi
+
+deleteISPFEnvironment ${TEMP_PROF} ${TEMP_TLIB} ${TEMP_TBL} 
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+exit 0
