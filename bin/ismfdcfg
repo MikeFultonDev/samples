@@ -1,4 +1,4 @@
 #!/bin/sh
-set -x
+#set -x
 SCDS='SYS1.S0W1.SCDS'
 echo "CMD(ACBQBAB1 DISPLAY SCDS('${SCDS}'))" | ismfcmd
