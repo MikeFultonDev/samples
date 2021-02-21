@@ -1,1 +1,3 @@
 bin/readsysvar
+bin/Xsysvar
+src/*.o
