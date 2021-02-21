@@ -5,6 +5,7 @@
 const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
 
 typedef struct {
+	const char* vsamCluster;
 	int keyValIndex;
 	int valOffset; 
 	int keyLen; 
@@ -32,8 +33,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, " -l: Display (in order, separated by spaces, all matches, one per line) <sysplex> <system> <prod> <ver> <rel> <mod> <val>\n");
 	fprintf(stderr, "     [default is to just display the value]\n");
 	fprintf(stderr, "Note:\n");
-	fprintf(stderr, " The key can be up to 255 characters in length\n");
-	fprintf(stderr, " The value can be up to 255 characters in length\n");
+	fprintf(stderr, " The key, value, sysplex, system, version, release, modification values can be up to 255 characters in length\n");
 	fprintf(stderr, " The product prefix must be 3 characters in length or *\n");
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, " Set key/value pair for JAVA_HOME globally\n");
@@ -64,6 +64,9 @@ static int syntax(const char* prog) {
 
 static int processArgs(int argc, char** argv, Options_T* opt) {
 	int i;
+
+	opt->vsamCluster=DEFAULT_VSAM_CLUSTER;
+
 	for (i=1; i<argc; ++i) {
 		const char* arg = argv[i];
 		if (arg[0] == '-') {
@@ -71,7 +74,7 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 				case 'h':
 				case '?':
 					if (arg[2] != '\0') {
-						fprintf(stderr, "Unknown option:%s\n", arg);
+						fprintf(stderr, "Unknown opt->on:%s\n", arg);
 					}
 					return(syntax(argv[0]));
 					break;
@@ -83,7 +86,7 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 				case 'R':
 				case 'M':
 					if (arg[2] != '\0') {
-						fprintf(stderr, "Unknown option:%s\n", arg);
+						fprintf(stderr, "Unknown opt->on:%s\n", arg);
 						return(syntax(argv[0]));
 					} else {
 						fprintf(stderr, "Option %s not implemented yet\n", arg);
@@ -91,7 +94,7 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 					}
 					break;
 				default:
-					fprintf(stderr, "Unknown option:%s\n", arg);
+					fprintf(stderr, "Unknown opt->on:%s\n", arg);
 					return(syntax(argv[0]));
 					break;
 			}
@@ -127,48 +130,66 @@ static FILE* mvsfopen(const char* dataset, const char* fmt) {
 	return fopen(mvsname, fmt);
 }
 
+static int getKey(char** argv, Options_T* opt) {
+	FILE* vsamfp;
+	int rc;
+	vsamfp = mvsfopen(opt->vsamCluster, "rb,type=record");
+	if (!vsamfp) {
+		perror(opt->vsamCluster);
+		fprintf(stderr, "Unable to open VSAM Cluster %s for read\n", opt->vsamCluster);
+		return 16;
+	}
+	rc = flocate(vsamfp, argv[opt->keyValIndex], opt->keyLen, __KEY_EQ);
+	if (rc) {
+		fprintf(stderr, "<temporary msg>: %.*s not found", opt->keyLen, argv[opt->keyValIndex]);
+		return 4;
+	}
+	rc = fclose(vsamfp);
+	if (rc) {
+		fprintf(stderr, "Unable to close VSAM Cluster %s\n", opt->vsamCluster);
+		return 16;
+	}
+	return 0;
+}
+
+static int setKey(char** argv, Options_T* opt) {
+	FILE* vsamfp;
+	int rc;
+	vsamfp = mvsfopen(opt->vsamCluster, "rb+,type=record");
+	if (!vsamfp) {
+		perror(opt->vsamCluster);
+		fprintf(stderr, "Unable to open VSAM Cluster %s for update\n", opt->vsamCluster);
+		return 16;
+	}
+	rc = flocate(vsamfp, argv[opt->keyValIndex], opt->keyLen, __KEY_EQ);
+	if (rc) {
+		fprintf(stderr, "<temporary msg>: %.*s not found for 'set'", opt->keyLen, argv[opt->keyValIndex]);
+		return 4;
+	}
+	
+	rc = fclose(vsamfp);
+	if (rc) {
+		fprintf(stderr, "Unable to close VSAM Cluster %s\n", opt->vsamCluster);
+		return 16;
+	}
+	return 0;
+}
+
 int main(int argc, char* argv[]) {
 	Options_T opt = { 0 };
-	const char* vsamcluster=DEFAULT_VSAM_CLUSTER;
 	int rc;
-	FILE* vsamfp;
 	
 
 	if (rc=processArgs(argc, argv, &opt)) {
 		return rc;	
 	}
 	if (opt.get) {
-		vsamfp = mvsfopen(vsamcluster, "rb,type=record");
-		if (!vsamfp) {
-			perror(vsamcluster);
-			fprintf(stderr, "Unable to open VSAM Cluster %s for read\n", vsamcluster);
-			return 16;
-		}
-		rc = flocate(vsamfp, argv[opt.keyValIndex], opt.keyLen, __KEY_EQ);
-		if (rc) {
-			fprintf(stderr, "<temporary msg>: %.*s not found", opt.keyLen, argv[opt.keyValIndex]);
-			return 4;
-		}
+		rc=getKey(argv, &opt);
 	} else if (opt.set) {
-		vsamfp = mvsfopen(vsamcluster, "rb+,type=record");
-		if (!vsamfp) {
-			perror(vsamcluster);
-			fprintf(stderr, "Unable to open VSAM Cluster %s for update\n", vsamcluster);
-			return 16;
-		}
-		rc = flocate(vsamfp, argv[opt.keyValIndex], opt.keyLen, __KEY_EQ);
-		if (rc) {
-			fprintf(stderr, "<temporary msg>: %.*s not found for 'set'", opt.keyLen, argv[opt.keyValIndex]);
-			return 4;
-		}
+		rc=setKey(argv, &opt);
 	} else {
-		fprintf(stderr, "Key not specified");
-		return 16;
-	}
-	rc = fclose(vsamfp);
-	if (rc) {
-		fprintf(stderr, "Unable to close VSAM Cluster %s\n", vsamcluster);
-		return 16;
+		fprintf(stderr, "Key not specified\n");
+		return syntax(argv[0]);
 	}
 	return 0;
 }
