@@ -1,0 +1,217 @@
+#!/bin/sh
+#set -x
+
+function isnum {
+	string=$1
+	case $string in
+	    ''|*[!0-9]*) return false ;;
+	    *) return true ;;
+	esac
+}
+
+function getkey {
+	# sets KEY string for use by KEYS parm in IDCAMS
+	baseKey=${1%%U}
+	if [ "${baseKey}" = "${1}" ]; then
+		unique=false
+	else
+		unique=true
+	fi
+	keyOffset=${baseKey#*:}
+	keyLength=${baseKey%%:*}
+
+	if isnum ${keyLength} ; then
+		if isnum ${keyOffset} ; then
+			if $unique ; then
+				echo ${keyLength} ${keyOffset} U
+			else 
+				echo ${keyLength} ${keyOffset}
+			fi
+			return 0
+		else
+			echo "Offset ${keyOffset} is not valid" >&2
+		fi
+	else
+		if isnum ${keyOffset} ; then
+			echo "Key length ${keyLength} is not valid" >&2
+		else
+			echo "Neither Key offset ${keyOffset} nor key length ${keyLength} is valid" >&2
+		fi
+	fi
+	return 8
+}
+	
+function crtVSAM {
+	cluster=$1
+	avg=$2
+	keyLen=$3
+	keyOffset=$4
+	type=$5
+
+	if [ "${keyLen}" != '' ]; then 
+		type="INDEXED KEYS(${keyLen} ${keyOffset})"
+		index="  INDEX (NAME(${cluster}.INDEX))"
+	else 
+		type='NONINDEXED'
+		index=''
+	fi
+	out=`vls ${cluster} 2>/dev/null`
+	rc=$? 
+	if [ $rc -eq 0 ]; then
+		echo "VSAM Cluster ${cluster} already exists" >&2
+		return 8
+	fi
+
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
+  DEFINE CLUSTER ( -
+    NAME(${cluster}) -
+    MEGABYTES(1,10) -
+    ${type} -
+    RECSZ(${avg} 32761) -
+  ) -
+  DATA ( -
+    NAME(${cluster}.DATA) -
+  ) -
+  ${index}
+zz
+	rc=$?
+	if [ ${rc} -gt 0 ]; then
+		echo "VSAM VSAM creation failed" >&2
+		echo "${out}" >&2
+		return $rc
+	fi	
+	return 0
+}
+
+function crtAltIndex {
+	aix="$1"
+	cluster="$2"
+	keyLen=$3
+	keyOffset=$4
+	type=$5
+
+	out=`vls ${cluster} 2>/dev/null`
+	rc=$? 
+	if [ $rc -gt 0 ]; then
+		echo "VSAM Cluster ${cluster} does not exist" >&2
+		return 8
+	fi
+
+	if [ "{type}" = "U" ]; then
+		keyType="UNIQUEKEY"
+	else
+		keyType="NONUNIQUEKEY"
+	fi
+
+        out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
+  DEFINE AIX ( -
+    NAME(${aix}) -
+    RELATE(${cluster}) -
+    KILOBYTES(10,100) -
+    KEYS(${keyLen} ${keyOffset}) -
+    ${keyType} -
+    UPGRADE -
+  ) -
+  DATA ( -
+    NAME(${aix}.DATA) -
+  ) -
+  INDEX ( -
+    NAME(${aix}.INDEX) -
+  ) 
+zz
+	rc=$?
+	if [ ${rc} -gt 0 ]; then
+		echo "VSAM AIX creation failed" >&2
+		echo "${out}" >&2
+		return $rc
+	fi
+
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
+  DEFINE PATH ( -
+    NAME(${aix}.PATH) -
+    PATHENTRY(${aix}) -
+  )
+zz
+	rc=$?
+	if [ ${rc} -gt 0 ]; then
+		echo "VSAM PATH creation failed" >&2
+		echo "${out}" >&2
+		return $rc
+	fi
+
+	return 0
+
+/* No need to build an index if the file was just created ?? */
+
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
+  BLDINDEX  -
+    INDATASET(${cluster}) -
+    OUTDATASET(${aix})
+zz
+	rc=$?
+	if [ ${rc} -gt 0 ]; then
+		echo "VSAM BLDINDEX creation failed" >&2
+		echo "${out}" >&2
+		return $rc
+	fi
+
+	return 0
+}
+if [ $# -lt 1 ]; then
+	echo "Syntax: $0 <cluster> [<key>]*" >&2
+	echo "Where <key> is of the form: <length>:<offset>[U]" >&2
+	echo "  <length>: the length of the key" >&2
+	echo "  <offset>: the offset of the key" >&2
+	echo "  U: indicates that the key is unique" >&2
+	echo "Note:" >&2
+	echo "  If the first key specified is unique, a KSDS will be created, otherwise an ESDS will be created" >&2
+	exit 4
+fi
+
+cluster=$(echo "$1" | tr '[:lower:]' '[:upper:]');
+
+#
+# Either provide an option or try to do a 'smart' average calculation
+#
+avg=32
+
+if [ $# -gt 1 ]; then 
+	key=$2
+	shift 2
+	altkeys=$*
+
+	keyInfo=`getkey ${key}`
+	if [ $? -gt 0 ]; then
+		exit 8
+	fi
+	w=`echo ${keyInfo} | wc -w` 
+	if [ $w -eq 3 ]; then
+		parms="${cluster} ${avg} ${keyInfo}"
+	else
+		parms="${cluster} ${avg}"
+		altkeys="${key} ${altkeys}"
+	fi
+else
+	parms="${cluster} ${avg}"
+fi
+
+crtVSAM ${parms}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+count=0
+for altkey in $altkeys; do
+	key=`getkey ${altkey}`
+	if [ $? -gt 0 ]; then
+		return 8
+	fi
+	count=$((count+1))
+	aix="${cluster}.AIX${count}"
+	crtAltIndex "${aix}" "${cluster}" ${key}
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		exit $rc
+	fi
+done	
