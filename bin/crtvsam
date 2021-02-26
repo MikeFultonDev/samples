@@ -10,32 +10,38 @@ function isnum {
 }
 
 function getkey {
-	# sets KEY string for use by KEYS parm in IDCAMS
 	baseKey=${1%%U}
 	if [ "${baseKey}" = "${1}" ]; then
 		unique=false
 	else
 		unique=true
 	fi
-	keyOffset=${baseKey#*:}
-	keyLength=${baseKey%%:*}
+	keyName=${baseKey%%:*}
+	keyVals=${baseKey#*:}
+	keyOffset=${keyVals#*:}
+	keyLength=${keyVals%%:*}
 
-	if isnum ${keyLength} ; then
-		if isnum ${keyOffset} ; then
-			if $unique ; then
-				echo ${keyLength} ${keyOffset} U
-			else 
-				echo ${keyLength} ${keyOffset}
+	if [ "${keyName}" = '' ] || [ "${keyName}" = "${baseKey}" ] || [ "${keyOffset}" = "${keyVals}" ] || [ "${keyLength}" = "${keyVals}" ]; then
+		echo "Key name, key offset, and key length must be specified" >&2
+	else 
+		if isnum ${keyLength} ; then
+			if isnum ${keyOffset} ; then
+				keyName=$(echo "$keyName" | tr '[:lower:]' '[:upper:]');
+				if $unique ; then
+					echo ${keyName} ${keyLength} ${keyOffset} U
+				else 
+					echo ${keyName} ${keyLength} ${keyOffset}
+				fi
+				return 0
+			else
+				echo "Offset ${keyOffset} is not valid" >&2
 			fi
-			return 0
 		else
-			echo "Offset ${keyOffset} is not valid" >&2
-		fi
-	else
-		if isnum ${keyOffset} ; then
-			echo "Key length ${keyLength} is not valid" >&2
-		else
-			echo "Neither Key offset ${keyOffset} nor key length ${keyLength} is valid" >&2
+			if isnum ${keyOffset} ; then
+				echo "Key length ${keyLength} is not valid" >&2
+			else
+				echo "Neither Key offset ${keyOffset} nor key length ${keyLength} is valid" >&2
+			fi
 		fi
 	fi
 	return 8
@@ -44,13 +50,14 @@ function getkey {
 function crtVSAM {
 	cluster=$1
 	avg=$2
-	keyLen=$3
-	keyOffset=$4
-	type=$5
+	keyName=$3
+	keyLen=$4
+	keyOffset=$5
+	type=$6
 
-	if [ "${keyLen}" != '' ]; then 
+	if [ "${keyName}" != '' ]; then 
 		type="INDEXED KEYS(${keyLen} ${keyOffset})"
-		index="  INDEX (NAME(${cluster}.INDEX))"
+		index="  INDEX (NAME(${cluster}.${keyName}.INDEX))"
 	else 
 		type='NONINDEXED'
 		index=''
@@ -84,8 +91,8 @@ zz
 }
 
 function crtAltIndex {
-	aix="$1"
-	cluster="$2"
+	cluster="$1"
+	keyName=$2
 	keyLen=$3
 	keyOffset=$4
 	type=$5
@@ -105,7 +112,7 @@ function crtAltIndex {
 
         out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   DEFINE AIX ( -
-    NAME(${aix}) -
+    NAME(${cluster}.${keyName}) -
     RELATE(${cluster}) -
     KILOBYTES(10,100) -
     KEYS(${keyLen} ${keyOffset}) -
@@ -113,10 +120,10 @@ function crtAltIndex {
     UPGRADE -
   ) -
   DATA ( -
-    NAME(${aix}.DATA) -
+    NAME(${cluster}.${keyName}.DATA) -
   ) -
   INDEX ( -
-    NAME(${aix}.INDEX) -
+    NAME(${cluster}.${keyName}.INDEX) -
   ) 
 zz
 	rc=$?
@@ -128,8 +135,8 @@ zz
 
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   DEFINE PATH ( -
-    NAME(${aix}.PATH) -
-    PATHENTRY(${aix}) -
+    NAME(${cluster}.${keyName}.PATH) -
+    PATHENTRY(${cluster}.${keyName}) -
   )
 zz
 	rc=$?
@@ -146,7 +153,7 @@ zz
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   BLDINDEX  -
     INDATASET(${cluster}) -
-    OUTDATASET(${aix})
+    OUTDATASET(${cluster}.${keyName})
 zz
 	rc=$?
 	if [ ${rc} -gt 0 ]; then
@@ -157,9 +164,15 @@ zz
 
 	return 0
 }
+
+#
+# Mainline
+#
+
 if [ $# -lt 1 ]; then
 	echo "Syntax: $0 <cluster> [<key>]*" >&2
-	echo "Where <key> is of the form: <length>:<offset>[U]" >&2
+	echo "Where <key> is of the form: <name>:<length>:<offset>[U]" >&2
+	echo "  <name>: the name of the key" >&2
 	echo "  <length>: the length of the key" >&2
 	echo "  <offset>: the offset of the key" >&2
 	echo "  U: indicates that the key is unique" >&2
@@ -185,7 +198,7 @@ if [ $# -gt 1 ]; then
 		exit 8
 	fi
 	w=`echo ${keyInfo} | wc -w` 
-	if [ $w -eq 3 ]; then
+	if [ $w -eq 4 ]; then
 		parms="${cluster} ${avg} ${keyInfo}"
 	else
 		parms="${cluster} ${avg}"
@@ -207,9 +220,7 @@ for altkey in $altkeys; do
 	if [ $? -gt 0 ]; then
 		return 8
 	fi
-	count=$((count+1))
-	aix="${cluster}.AIX${count}"
-	crtAltIndex "${aix}" "${cluster}" ${key}
+	crtAltIndex "${cluster}" ${key}
 	rc=$?
 	if [ $rc -gt 0 ]; then
 		exit $rc

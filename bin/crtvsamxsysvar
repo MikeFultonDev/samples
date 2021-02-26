@@ -1,0 +1,2 @@
+#!/bin/sh
+crtvsam sys1.xsysvar prodid:4:0 ver:3:4 rel:3:7 mod:3:10 key:16:10
