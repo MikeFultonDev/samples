@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
+const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR.KEY";
 
 typedef struct {
 	const char* vsamCluster;
@@ -13,6 +13,21 @@ typedef struct {
 	int get:1;
 	int set:1;
 } Options_T;
+
+typedef struct {
+	char prodID[4];
+	char ver[3];
+	char rel[3];
+	char mod[4];
+	char key[16];
+	char val[16];
+	unsigned short prodIDXLen;
+	unsigned short verXLen;
+	unsigned short relXLen;
+	unsigned short modXLen;
+	unsigned short keyXLen;
+	unsigned short valXLen;
+} FixedRecord_T;
 
 static int syntax(const char* prog) {
 	fprintf(stderr, "%s [-?hlXSPVRM] <key>[=<val>]\n", prog);

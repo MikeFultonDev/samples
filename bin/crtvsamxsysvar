@@ -1,2 +1,5 @@
 #!/bin/sh
-crtvsam sys1.xsysvar prodid:4:0 ver:3:4 rel:3:7 mod:3:10 key:16:10
+repro=/tmp/$$.vsam 
+dd if=/dev/zero bs=1 count=64 2>/dev/null >"${repro}"
+crtvsam sys1.xsysvar "${repro}" prodid:4:0 ver:3:4 rel:3:7 mod:3:10 key:16:10
+rm ${repro}

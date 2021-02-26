@@ -48,12 +48,13 @@ function getkey {
 }
 	
 function crtVSAM {
-	cluster=$1
-	avg=$2
-	keyName=$3
-	keyLen=$4
-	keyOffset=$5
-	type=$6
+	fixedRecord=$1
+	repro=$2
+	cluster=$3
+	keyName=$4
+	keyLen=$5
+	keyOffset=$6
+	type=$7
 
 	if [ "${keyName}" != '' ]; then 
 		type="INDEXED KEYS(${keyLen} ${keyOffset})"
@@ -62,6 +63,11 @@ function crtVSAM {
 		type='NONINDEXED'
 		index=''
 	fi
+	if [ ! -f "${repro}" ]; then
+		echo "Repro file: ${repro} does not exist" >&2
+		return 8
+	fi
+
 	out=`vls ${cluster} 2>/dev/null`
 	rc=$? 
 	if [ $rc -eq 0 ]; then
@@ -74,7 +80,7 @@ function crtVSAM {
     NAME(${cluster}) -
     MEGABYTES(1,10) -
     ${type} -
-    RECSZ(${avg} 32761) -
+    RECSZ(${fixedRecord} 32761) -
   ) -
   DATA ( -
     NAME(${cluster}.DATA) -
@@ -83,7 +89,17 @@ function crtVSAM {
 zz
 	rc=$?
 	if [ ${rc} -gt 0 ]; then
-		echo "VSAM VSAM creation failed" >&2
+		echo "VSAM creation failed" >&2
+		echo "${out}" >&2
+		return $rc
+	fi	
+
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout --in="${repro}" --out="${cluster}"` <<zz
+  REPRO INFILE(IN) OUTFILE(OUT)
+zz
+	rc=$?
+	if [ ${rc} -gt 0 ]; then
+		echo "VSAM REPRO failed" >&2
 		echo "${out}" >&2
 		return $rc
 	fi	
@@ -146,10 +162,6 @@ zz
 		return $rc
 	fi
 
-	return 0
-
-/* No need to build an index if the file was just created ?? */
-
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   BLDINDEX  -
     INDATASET(${cluster}) -
@@ -165,13 +177,31 @@ zz
 	return 0
 }
 
+function adjustFixedRecord {
+	fixedRecord=$1
+	keyName=$2
+	keyLen=$3
+	keyOffset=$4
+	type=$5
+
+
+	end=$((keyOffset+keyLen))
+	if [ ${end} -gt ${fixedRecord} ]; then
+		fixedRecord=$end
+	fi
+	return $fixedRecord
+}
+	
 #
 # Mainline
 #
 
-if [ $# -lt 1 ]; then
-	echo "Syntax: $0 <cluster> [<key>]*" >&2
-	echo "Where <key> is of the form: <name>:<length>:<offset>[U]" >&2
+if [ $# -lt 2 ]; then
+	echo "Syntax: $0 <cluster> <repro> [<key>]*" >&2
+	echo "Where: " >&2
+	echo "<cluster> is the name of the VSAM cluster to create" >&2
+	echo "<repro> is the name of the file to perform the initial load from" >&2
+	echo "<key> is of the form: <name>:<length>:<offset>[U]" >&2
 	echo "  <name>: the name of the key" >&2
 	echo "  <length>: the length of the key" >&2
 	echo "  <offset>: the offset of the key" >&2
@@ -182,44 +212,49 @@ if [ $# -lt 1 ]; then
 fi
 
 cluster=$(echo "$1" | tr '[:lower:]' '[:upper:]');
+repro="$2"
 
 #
 # Either provide an option or try to do a 'smart' average calculation
 #
-avg=32
+shift 2
+allkeys=$*
+shift 1
+altkeys=$*
 
-if [ $# -gt 1 ]; then 
-	key=$2
-	shift 2
-	altkeys=$*
-
+#
+# Check the keys and find the end of the 'fixed record'
+# Also determine if the first key is UNIQUE, in which case create a KSDS with that key
+#
+fixedRecord=0
+first=true
+for key in ${allkeys}; do
 	keyInfo=`getkey ${key}`
 	if [ $? -gt 0 ]; then
-		exit 8
+		return 8
 	fi
-	w=`echo ${keyInfo} | wc -w` 
-	if [ $w -eq 4 ]; then
-		parms="${cluster} ${avg} ${keyInfo}"
-	else
-		parms="${cluster} ${avg}"
-		altkeys="${key} ${altkeys}"
+	if ${first} ; then
+		w=`echo ${keyInfo} | wc -w` 
+		if [ $w -eq 4 ]; then
+			primaryKeyInfo="${keyInfo}"
+		else
+			primaryKeyInfo=''
+			altkeys=${allkeys}
+		fi
 	fi
-else
-	parms="${cluster} ${avg}"
-fi
+		
+	adjustFixedRecord ${fixedRecord} ${keyInfo}
+	fixedRecord=$?
+done
 
-crtVSAM ${parms}
+crtVSAM ${fixedRecord} ${repro} ${cluster} ${primaryKeyInfo}
 rc=$?
 if [ $rc -gt 0 ]; then
 	exit $rc
 fi
 
-count=0
 for altkey in $altkeys; do
 	key=`getkey ${altkey}`
-	if [ $? -gt 0 ]; then
-		return 8
-	fi
 	crtAltIndex "${cluster}" ${key}
 	rc=$?
 	if [ $rc -gt 0 ]; then
