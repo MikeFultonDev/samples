@@ -1,0 +1,21 @@
+#!/bin/sh
+if [ $# -lt 2 ]; then
+	echo "Syntax $0 <VSAM input> <output>" >&2
+	exit 4
+fi	
+in=$1
+out=$2
+
+if [ "${out##*/}" != "${out}" ]; then
+	rm -f "${out}"
+	touch "${out}"
+	if [ $? -gt 0 ]; then
+		echo "Unable to write to ${out}." >&2
+		exit 8
+	fi
+	out="${out},lrecl=16535,recfm=vb"
+fi
+
+mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin --in="${in}" --out="${out}" <<zz
+  REPRO INFILE(IN)  OUTFILE(OUT)
+zz

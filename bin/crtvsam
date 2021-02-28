@@ -153,6 +153,7 @@ zz
   DEFINE PATH ( -
     NAME(${cluster}.${keyName}.PATH) -
     PATHENTRY(${cluster}.${keyName}) -
+    UPDATE -
   )
 zz
 	rc=$?

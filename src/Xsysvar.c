@@ -1,15 +1,24 @@
 #pragma langlvl(extended)
+#define _OPEN_SYS_UNLOCKED_EXT 1
 #include <stdio.h>
 #include <string.h>
 
-const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR.KEY";
+#define MAX_DSNAME_LEN (44)
+#define MAX_RECLEN (32761)
+#define FIXED_KEY_SIZE (16)
+#define FIXED_VAL_SIZE (16)
+#define CLUSTER_QUAL ""
+#define KEY_QUAL ".KEY.PATH"
+
+const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
 
 typedef struct {
 	const char* vsamCluster;
 	int keyValIndex;
-	int valOffset; 
-	int keyLen; 
-	int valLen; 
+	size_t keyOffset; 
+	size_t valOffset; 
+	size_t keyLen; 
+	size_t valLen; 
 	int get:1;
 	int set:1;
 } Options_T;
@@ -19,15 +28,15 @@ typedef struct {
 	char ver[3];
 	char rel[3];
 	char mod[4];
-	char key[16];
-	char val[16];
+	char key[FIXED_KEY_SIZE];
+	char val[FIXED_VAL_SIZE];
 	unsigned short prodIDXLen;
 	unsigned short verXLen;
 	unsigned short relXLen;
 	unsigned short modXLen;
 	unsigned short keyXLen;
 	unsigned short valXLen;
-} FixedRecord_T;
+} FixedHeader_T;
 
 static int syntax(const char* prog) {
 	fprintf(stderr, "%s [-?hlXSPVRM] <key>[=<val>]\n", prog);
@@ -117,6 +126,7 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 			char* eqp;
 			int len = strlen(arg);
 			opt->keyValIndex = i;
+			opt->keyOffset = 0;
 			eqp = strchr(arg, '=');
 			if (eqp) {
 				opt->set = 1;
@@ -132,59 +142,128 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 	return 0;
 }
 
-#define MAX_DSNAME_LEN (44)
 
-static FILE* mvsfopen(const char* dataset, const char* fmt) {
+static FILE* vsamfopen(const char* dataset, const char* qual, const char* fmt) {
 	char mvsname[MAX_DSNAME_LEN+5];
+	FILE* fp;
 
 	if (strlen(dataset) > MAX_DSNAME_LEN) {
 		fprintf(stderr, "VSAM Cluster key/value dataset name invalid: %s\n", dataset);
 		return NULL;
 	}
-	sprintf(mvsname, "//'%s'", dataset);
-	return fopen(mvsname, fmt);
+	sprintf(mvsname, "//'%s%s'", dataset, qual);
+printf("vsamfopen %s\n", mvsname);
+	fp=fopen(mvsname, fmt);
+	if (!fp) {
+		perror(mvsname);
+		fprintf(stderr, "Unable to open VSAM dataset %s for read\n", mvsname);
+	}
+}
+
+static int vsamfwrite(const char* buffer, size_t numbytes, FILE* fp) {
+	int rc=fwrite(buffer, 1, numbytes, fp);
+	if (rc != numbytes) {
+		perror("fwrite");
+		fprintf(stderr, "Unable to write to VSAM dataset\n");
+	}
+	return rc;
+}
+
+static int vsamfclose(FILE* fp) {
+	int rc = fclose(fp);
+	if (rc) {
+		/* MSF - TBD - get dataset name here for better diagnostics */
+		perror("fclose");
+		fprintf(stderr, "Unable to close VSAM dataset\n");
+	}
+	return rc;
+}
+
+static int setRecord(char* buffer, int *bufferLen, char** argv, Options_T* opt) {
+	/*
+	 * MSF - TBD - deal with PVRM and key/value longer than minimum
+	 */
+	FixedHeader_T* fh = (FixedHeader_T*) buffer;
+	size_t keyLen;
+	size_t valLen;
+	char* key;
+	char* val;
+  
+	memset(fh, 0, sizeof(FixedHeader_T));
+	keyLen = (opt->keyLen > FIXED_KEY_SIZE) ? FIXED_KEY_SIZE : opt->keyLen;
+	valLen = (opt->valLen > FIXED_VAL_SIZE) ? FIXED_VAL_SIZE : opt->valLen;
+	key = &argv[opt->keyValIndex][opt->keyOffset];
+	val = &argv[opt->keyValIndex][opt->valOffset];
+
+	memcpy(&fh->key, key, keyLen);
+	memcpy(&fh->val, val, valLen);
+	
+	*bufferLen = sizeof(FixedHeader_T);
+
+	return 0;
 }
 
 static int getKey(char** argv, Options_T* opt) {
 	FILE* vsamfp;
 	int rc;
-	vsamfp = mvsfopen(opt->vsamCluster, "rb,type=record");
+	vsamfp = vsamfopen(opt->vsamCluster, KEY_QUAL, "rb,type=record");
 	if (!vsamfp) {
-		perror(opt->vsamCluster);
-		fprintf(stderr, "Unable to open VSAM Cluster %s for read\n", opt->vsamCluster);
 		return 16;
 	}
-	rc = flocate(vsamfp, argv[opt->keyValIndex], opt->keyLen, __KEY_EQ);
+	rc = flocate(vsamfp, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen, __KEY_EQ);
 	if (rc) {
 		fprintf(stderr, "<temporary msg>: %.*s not found", opt->keyLen, argv[opt->keyValIndex]);
 		return 4;
 	}
-	rc = fclose(vsamfp);
+	rc = vsamfclose(vsamfp);
 	if (rc) {
-		fprintf(stderr, "Unable to close VSAM Cluster %s\n", opt->vsamCluster);
 		return 16;
 	}
 	return 0;
 }
 
 static int setKey(char** argv, Options_T* opt) {
+	FixedHeader_T hdr = { 0 };
+	char buffer[MAX_RECLEN];
+	int bufferLen;
 	FILE* vsamfp;
 	int rc;
-	vsamfp = mvsfopen(opt->vsamCluster, "rb+,type=record");
+	vsamfp = vsamfopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamfp) {
-		perror(opt->vsamCluster);
-		fprintf(stderr, "Unable to open VSAM Cluster %s for update\n", opt->vsamCluster);
 		return 16;
 	}
-	rc = flocate(vsamfp, argv[opt->keyValIndex], opt->keyLen, __KEY_EQ);
+	memcpy(hdr.key, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen);
+	rc = flocate(vsamfp, hdr.key, FIXED_KEY_SIZE, __KEY_EQ);
 	if (rc) {
-		fprintf(stderr, "<temporary msg>: %.*s not found for 'set'", opt->keyLen, argv[opt->keyValIndex]);
-		return 4;
+		fprintf(stderr, "<temporary msg>: %.*s not found for 'set'\n", opt->keyLen, argv[opt->keyValIndex]);
+	} else {
+		fprintf(stderr, "<temporary msg>: %.*s found for 'set'\n", opt->keyLen, argv[opt->keyValIndex]);
+		/*
+ 		 * need to do an fupdate here
+		 */
+		return 0;
+	}
+	rc = vsamfclose(vsamfp);
+	if (rc) {
+		return 16;
+	}
+
+	rc = setRecord(buffer, &bufferLen, argv, opt);
+	if (rc) {
+		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
+		return 16;
+	}
+	vsamfp = vsamfopen(opt->vsamCluster, CLUSTER_QUAL, "rb+,type=record");
+	if (!vsamfp) {
+		return 16;
+	}
+	rc = vsamfwrite(buffer, bufferLen, vsamfp);
+	if (rc != bufferLen) {
+		return 16;
 	}
 	
-	rc = fclose(vsamfp);
+	rc = vsamfclose(vsamfp);
 	if (rc) {
-		fprintf(stderr, "Unable to close VSAM Cluster %s\n", opt->vsamCluster);
 		return 16;
 	}
 	return 0;
