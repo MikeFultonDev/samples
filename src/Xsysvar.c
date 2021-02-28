@@ -158,6 +158,7 @@ printf("vsamfopen %s\n", mvsname);
 		perror(mvsname);
 		fprintf(stderr, "Unable to open VSAM dataset %s for read\n", mvsname);
 	}
+	return fp;
 }
 
 static int vsamfwrite(const char* buffer, size_t numbytes, FILE* fp) {
