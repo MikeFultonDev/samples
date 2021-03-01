@@ -203,7 +203,15 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 	}
 	rc = flocate(fp, key, keyLen, __KEY_EQ);
 	if (rc) {
-		fprintf(stderr, "<temporary msg>: %.*s not found", key, keyLen);
+		fprintf(stderr, "<temporary msg>: %.*s not found\n", key, keyLen);
+		return NULL;
+	}
+	rc = vsamread(hdr, MAX_RECLEN, fp);
+	/*
+	 * MSF - TBD - will need to check for record being too short when full value support added
+	 */
+	if (rc <= 0) {
+		fprintf(stderr, "Unable to read record after flocate successful\n");
 		return NULL;
 	}
 	return hdr;
@@ -223,7 +231,7 @@ static int printField(FixedHeader_T* hdr, VSAMField_T field) {
 	int rc;	
 	switch (field) {
                 case ValField:
-			rc = printf("%s", hdr->val);
+			rc = printf("%s\n", hdr->val);
 			if (hdr->valXLen > 0) {
 				fprintf(stderr, "Implement print of extended value\n");
 				exit(16);
@@ -274,11 +282,10 @@ static int getKey(char** argv, Options_T* opt) {
 	if (!hdr) {
 		return 4;
 	}
-	rc = vsamread(hdr, sizeof(buffer), vsamfp);
+	printField(hdr, ValField);
 	if (rc <= 0) {
 		return 16;
 	}
-	printField(hdr, ValField);
 	rc = vsamclose(vsamfp);
 	if (rc) {
 		return 16;
@@ -287,46 +294,47 @@ static int getKey(char** argv, Options_T* opt) {
 }
 
 static int setKey(char** argv, Options_T* opt) {
-	FILE* vsamfp;
+	FILE* vsamkfp;
+	FILE* vsamcfp;
 	int bufferLen;
 	int rc;
 	FixedHeader_T* hdr;
 	char buffer[MAX_RECLEN];
 
-	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
-	if (!vsamfp) {
+	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
+	if (!vsamkfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField);
-	if (!hdr) {
-		fprintf(stderr, "<temporary msg>: not found for 'set'\n");
-	} else {
-		fprintf(stderr, "<temporary msg>: found for 'set'\n");
-		/*
- 		 * need to do an fupdate here
-		 */
-		return 0;
-	}
-	rc = vsamclose(vsamfp);
-	if (rc) {
-		return 16;
-	}
-
+	hdr = vsamxlocate(vsamkfp, buffer, argv, opt, KeyField);
 	rc = setRecord(buffer, &bufferLen, argv, opt);
 	if (rc) {
 		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
 		return 16;
 	}
-	vsamfp = vsamopen(opt->vsamCluster, CLUSTER_QUAL, "rb+,type=record");
-	if (!vsamfp) {
+	if (!hdr) {
+		fprintf(stderr, "<temporary msg>: not found for 'set'\n");
+	} else {
+		/*
+		 * MSF - TBD - add logic if new record longer - can not do fupdate
+		 */
+		fupdate(buffer, bufferLen, vsamkfp);
+		return 0;
+	}
+	rc = vsamclose(vsamkfp);
+	if (rc) {
 		return 16;
 	}
-	rc = vsamwrite(buffer, bufferLen, vsamfp);
+
+	vsamcfp = vsamopen(opt->vsamCluster, CLUSTER_QUAL, "rb+,type=record");
+	if (!vsamcfp) {
+		return 16;
+	}
+	rc = vsamwrite(buffer, bufferLen, vsamcfp);
 	if (rc != bufferLen) {
 		return 16;
 	}
 	
-	rc = vsamclose(vsamfp);
+	rc = vsamclose(vsamcfp);
 	if (rc) {
 		return 16;
 	}
