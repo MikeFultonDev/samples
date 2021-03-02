@@ -2,6 +2,7 @@
 #define _OPEN_SYS_UNLOCKED_EXT 1
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 
 #define MAX_DSNAME_LEN (44)
 #define MAX_RECLEN (32761)
@@ -18,6 +19,12 @@ typedef enum {
 	ValField=2
 } VSAMField_T;
 
+typedef enum {
+	NoMatch=1,
+	PartialMatch=2,
+	FullMatch=3
+} KeyMatch_T;
+
 typedef struct {
 	const char* vsamCluster;
 	int keyValIndex;
@@ -29,18 +36,31 @@ typedef struct {
 	int set:1;
 } Options_T;
 
-typedef struct {
+/*
+ * NOTE: The following structure layout can not be changed without also 
+ *       re-generating the VSAM Sphere as well as updating the code for
+ *       calculating how to read/write to instances of this structure.
+ *       The last byte of the fixed character fields is always 0x00.
+ */
+typedef _Packed struct {
+	char inactive;
 	char prodID[4];
 	char ver[3];
 	char rel[3];
-	char mod[4];
+	char mod[3];
 	char key[FIXED_KEY_SIZE];
 	char val[FIXED_VAL_SIZE];
+	unsigned short prodIDXOffset;
 	unsigned short prodIDXLen;
+	unsigned short verXOffset;
 	unsigned short verXLen;
+	unsigned short relXOffset;
 	unsigned short relXLen;
+	unsigned short modXOffset;
 	unsigned short modXLen;
+	unsigned short keyXOffset;
 	unsigned short keyXLen;
+	unsigned short valXOffset;
 	unsigned short valXLen;
 } FixedHeader_T;
 
@@ -184,35 +204,128 @@ static int vsamwrite(const char* buffer, size_t numbytes, FILE* fp) {
 	return rc;
 }
 
-static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T field) {
+static int setxfield(FixedHeader_T* hdr, unsigned short* xoffsetp, unsigned short* xlenp, unsigned short xlen, const char* xfield) {
+	char* buffer = (char*) hdr;
+	size_t bufferLen = (hdr->verXLen + hdr->relXLen + hdr->modXLen + hdr->keyXLen + hdr->valXLen);
+	buffer += sizeof(FixedHeader_T);
+	if (bufferLen + xlen > MAX_RECLEN) {
+		fprintf(stderr, "Total length of new record would exceed maximum record length. copy failed\n");
+		return 0;
+	}
+	*xoffsetp = bufferLen;
+	*xlenp = xlen;
+	memcpy(&buffer[*xoffsetp], xfield, xlen);
+	return xlen;
+}
+
+static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMField_T fieldName) {
+        switch (fieldName) {
+		case KeyField:
+			if (len >= FIXED_KEY_SIZE) {
+				memcpy(hdr->key, field, FIXED_KEY_SIZE-1);
+				return setxfield(hdr, &hdr->keyXOffset, &hdr->keyXLen, len-FIXED_KEY_SIZE, &field[FIXED_KEY_SIZE]);
+			} else {
+				memcpy(hdr->key, field, len);
+				return 0;
+			}
+                        break;
+		case ValField:
+			if (len >= FIXED_KEY_SIZE) {
+				memcpy(hdr->val, field, FIXED_VAL_SIZE-1);
+				return setxfield(hdr, &hdr->valXOffset, &hdr->valXLen, len-FIXED_VAL_SIZE, &field[FIXED_VAL_SIZE]);
+			} else {
+				memcpy(hdr->val, field, len);
+				return 0;
+			}
+                        break;
+                default:
+                        fprintf(stderr, "TBD: Implement setfield of other fields\n");
+	                exit(16);
+        }
+}
+
+static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short xlen, unsigned short userlen, const char* userkey) {
+	char* buffer = (char*) hdr;
+
+	if (xlen != userlen) {
+		return NoMatch;
+	}
+
+	buffer += sizeof(FixedHeader_T);
+	if (!memcmp(&buffer[xoffsetp], userkey, userlen)) {
+		return FullMatch;
+	} else {
+		return NoMatch;
+	}
+}
+
+static int cmpfield(FixedHeader_T* hdr, const char* vsamfield, const char* userfield, size_t len) {
+	if (!memcmp(vsamfield, userfield, len)) {
+		if (hdr->inactive) {
+			return PartialMatch;
+		} else {
+			return FullMatch;
+		}
+	} else {
+		return NoMatch;
+	}
+}
+
+static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, VSAMField_T fieldName) {
+	KeyMatch_T fieldCheck;
+	switch (fieldName) {
+		case KeyField:
+			if (len >= FIXED_KEY_SIZE) {
+				fieldCheck = cmpfield(hdr, hdr->key, field, FIXED_KEY_SIZE-1);
+				if (fieldCheck == FullMatch) {
+					return cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE, &field[FIXED_KEY_SIZE]);
+				} else {
+					return fieldCheck;
+				}
+			} else {
+				return cmpfield(hdr, hdr->key, field, len);
+			}
+		default:
+			fprintf(stderr, "TBD: Implement extended match of other fields\n");
+			exit(16);
+	}
+}
+	
+static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T fieldName) {
 	FixedHeader_T* hdr = (FixedHeader_T*) buffer;	
-	char* key;
-	size_t keyLen;
+	char* field;
+	size_t vsamFieldLen;
+	size_t fieldLen;
 	int rc;
+	KeyMatch_T result = PartialMatch;
 
 	memset(hdr, 0, sizeof(FixedHeader_T));
-	switch (field) {
+	switch (fieldName) {
 		case KeyField:
-			key = hdr->key;
-			keyLen = opt->keyLen;
-			memcpy(key, &argv[opt->keyValIndex][opt->keyOffset], keyLen);
+			field = hdr->key;
+			fieldLen = opt->keyLen;
+			vsamFieldLen = (fieldLen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : opt->keyLen;
+			memcpy(field, &argv[opt->keyValIndex][opt->keyOffset], vsamFieldLen);
 			break;
 		default:
 			fprintf(stderr, "TBD: Implement extended locate of other fields\n");
 			exit(16);
 	}
-	rc = flocate(fp, key, keyLen, __KEY_EQ);
+	rc = flocate(fp, field, FIXED_KEY_SIZE-1, __KEY_EQ);
 	if (rc) {
-		fprintf(stderr, "<temporary msg>: %.*s not found\n", key, keyLen);
+		fprintf(stderr, "<temporary msg>: %.*s not found\n", field, fieldLen);
 		return NULL;
 	}
-	rc = vsamread(hdr, MAX_RECLEN, fp);
-	/*
-	 * MSF - TBD - will need to check for record being too short when full value support added
-	 */
-	if (rc <= 0) {
-		fprintf(stderr, "Unable to read record after flocate successful\n");
-		return NULL;
+	while (result == PartialMatch) {
+		rc = vsamread(hdr, MAX_RECLEN, fp);
+		if (rc <= 0) {
+			fprintf(stderr, "Unable to read record after flocate successful\n");
+			return NULL;
+		}
+		result = vsamxmatch(hdr, field, fieldLen, fieldName);
+		if (result == NoMatch) {
+			hdr = NULL;
+		}
 	}
 	return hdr;
 }
@@ -231,7 +344,7 @@ static int printField(FixedHeader_T* hdr, VSAMField_T field) {
 	int rc;	
 	switch (field) {
                 case ValField:
-			rc = printf("%s\n", hdr->val);
+			rc = printf("<%s>\n", hdr->val);
 			if (hdr->valXLen > 0) {
 				fprintf(stderr, "Implement print of extended value\n");
 				exit(16);
@@ -246,24 +359,16 @@ static int printField(FixedHeader_T* hdr, VSAMField_T field) {
 
 static int setRecord(char* buffer, int *bufferLen, char** argv, Options_T* opt) {
 	/*
-	 * MSF - TBD - deal with PVRM and key/value longer than minimum
+	 * MSF - TBD - deal with PVRM and value longer than minimum
 	 */
 	FixedHeader_T* fh = (FixedHeader_T*) buffer;
-	size_t keyLen;
-	size_t valLen;
-	char* key;
-	char* val;
+	size_t extLen=0;
   
 	memset(fh, 0, sizeof(FixedHeader_T));
-	keyLen = (opt->keyLen > FIXED_KEY_SIZE) ? FIXED_KEY_SIZE : opt->keyLen;
-	valLen = (opt->valLen > FIXED_VAL_SIZE) ? FIXED_VAL_SIZE : opt->valLen;
-	key = &argv[opt->keyValIndex][opt->keyOffset];
-	val = &argv[opt->keyValIndex][opt->valOffset];
-
-	memcpy(&fh->key, key, keyLen);
-	memcpy(&fh->val, val, valLen);
+	extLen += setfield(fh, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen, KeyField);
+	extLen += setfield(fh, &argv[opt->keyValIndex][opt->valOffset], opt->valLen, ValField);
 	
-	*bufferLen = sizeof(FixedHeader_T);
+	*bufferLen = (sizeof(FixedHeader_T) + extLen);
 
 	return 0;
 }
