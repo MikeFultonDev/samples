@@ -223,16 +223,16 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 		case KeyField:
 			if (len >= FIXED_KEY_SIZE) {
 				memcpy(hdr->key, field, FIXED_KEY_SIZE-1);
-				return setxfield(hdr, &hdr->keyXOffset, &hdr->keyXLen, len-FIXED_KEY_SIZE, &field[FIXED_KEY_SIZE]);
+				return setxfield(hdr, &hdr->keyXOffset, &hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
 			} else {
 				memcpy(hdr->key, field, len);
 				return 0;
 			}
                         break;
 		case ValField:
-			if (len >= FIXED_KEY_SIZE) {
+			if (len >= FIXED_VAL_SIZE) {
 				memcpy(hdr->val, field, FIXED_VAL_SIZE-1);
-				return setxfield(hdr, &hdr->valXOffset, &hdr->valXLen, len-FIXED_VAL_SIZE, &field[FIXED_VAL_SIZE]);
+				return setxfield(hdr, &hdr->valXOffset, &hdr->valXLen, len-FIXED_VAL_SIZE+1, &field[FIXED_VAL_SIZE-1]);
 			} else {
 				memcpy(hdr->val, field, len);
 				return 0;
@@ -259,8 +259,8 @@ static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short
 	}
 }
 
-static int cmpfield(FixedHeader_T* hdr, const char* vsamfield, const char* userfield, size_t len) {
-	if (!memcmp(vsamfield, userfield, len)) {
+static int cmpfield(FixedHeader_T* hdr, const char* vsamfield, const char* userfield, size_t userlen) {
+	if (!memcmp(vsamfield, userfield, userlen)) {
 		if (hdr->inactive) {
 			return PartialMatch;
 		} else {
@@ -278,7 +278,7 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, 
 			if (len >= FIXED_KEY_SIZE) {
 				fieldCheck = cmpfield(hdr, hdr->key, field, FIXED_KEY_SIZE-1);
 				if (fieldCheck == FullMatch) {
-					return cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE, &field[FIXED_KEY_SIZE]);
+					return cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
 				} else {
 					return fieldCheck;
 				}
@@ -293,36 +293,38 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, 
 	
 static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T fieldName) {
 	FixedHeader_T* hdr = (FixedHeader_T*) buffer;	
-	char* field;
-	size_t vsamFieldLen;
-	size_t fieldLen;
+	char* vsamfield;
+	char* userfield;
+	size_t vsamfieldlen;
+	size_t userlen;
 	int rc;
 	KeyMatch_T result = PartialMatch;
 
 	memset(hdr, 0, sizeof(FixedHeader_T));
 	switch (fieldName) {
 		case KeyField:
-			field = hdr->key;
-			fieldLen = opt->keyLen;
-			vsamFieldLen = (fieldLen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : opt->keyLen;
-			memcpy(field, &argv[opt->keyValIndex][opt->keyOffset], vsamFieldLen);
+			vsamfield = hdr->key;
+			userfield = &argv[opt->keyValIndex][opt->keyOffset];
+			userlen = opt->keyLen;
+			vsamfieldlen = (userlen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : opt->keyLen;
+			memcpy(vsamfield, userfield, vsamfieldlen);
 			break;
 		default:
 			fprintf(stderr, "TBD: Implement extended locate of other fields\n");
 			exit(16);
 	}
-	rc = flocate(fp, field, FIXED_KEY_SIZE-1, __KEY_EQ);
+	rc = flocate(fp, vsamfield, FIXED_KEY_SIZE-1, __KEY_EQ);
 	if (rc) {
-		fprintf(stderr, "<temporary msg>: %.*s not found\n", field, fieldLen);
+		printf("Temporary Message... Fixed key %s not found\n", vsamfield);
 		return NULL;
 	}
 	while (result == PartialMatch) {
 		rc = vsamread(hdr, MAX_RECLEN, fp);
 		if (rc <= 0) {
-			fprintf(stderr, "Unable to read record after flocate successful\n");
+			fprintf(stderr, "Unable to read record after flocate of %s successful\n", vsamfield);
 			return NULL;
 		}
-		result = vsamxmatch(hdr, field, fieldLen, fieldName);
+		result = vsamxmatch(hdr, userfield, userlen, fieldName);
 		if (result == NoMatch) {
 			hdr = NULL;
 		}
@@ -340,15 +342,26 @@ static int vsamclose(FILE* fp) {
 	return rc;
 }
 
-static int printField(FixedHeader_T* hdr, VSAMField_T field) {
+static int printxfield(const FixedHeader_T* hdr, const char* fixed, size_t fixedlen, size_t offset, size_t xlen) {
+	const char* buffer = (((const char*) hdr) + sizeof(FixedHeader_T));
+	int rc;
+
+	if (xlen > 0) {	
+		rc = printf("%s%.*s\n", fixed, xlen, &buffer[offset]);
+	} else {
+		rc = printf("%s\n", fixed);
+	}
+	return rc;
+}
+		
+static int printfield(FixedHeader_T* hdr, VSAMField_T field) {
 	int rc;	
 	switch (field) {
                 case ValField:
-			rc = printf("<%s>\n", hdr->val);
-			if (hdr->valXLen > 0) {
-				fprintf(stderr, "Implement print of extended value\n");
-				exit(16);
-			}
+			rc = printxfield(hdr, hdr->val, FIXED_VAL_SIZE-1, hdr->valXOffset, hdr->valXLen);
+	          	break;
+                case KeyField:
+			rc = printxfield(hdr, hdr->key, FIXED_KEY_SIZE-1, hdr->keyXOffset, hdr->keyXLen);
 	          	break;
 		default:
                         fprintf(stderr, "TBD: Implement print of other fields\n");
@@ -385,9 +398,10 @@ static int getKey(char** argv, Options_T* opt) {
 	}
 	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField);
 	if (!hdr) {
+		fprintf(stderr, "Temporary Message... key not found\n");
 		return 4;
 	}
-	printField(hdr, ValField);
+	printfield(hdr, ValField);
 	if (rc <= 0) {
 		return 16;
 	}
@@ -417,7 +431,7 @@ static int setKey(char** argv, Options_T* opt) {
 		return 16;
 	}
 	if (!hdr) {
-		fprintf(stderr, "<temporary msg>: not found for 'set'\n");
+		printf("Temporary Message... Key not found. Will do fwrite\n");
 	} else {
 		/*
 		 * MSF - TBD - add logic if new record longer - can not do fupdate
