@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# Test XSysvar by:
+# - deleting the VSAM Sphere
+# - creating the VSAM Sphere
+# - create the sysvar with value of length 0 to 15, one after another, verifying it can be read correctly
+# - verify 2 records exist - initial 'dummy' record and one fixed value record
+# - create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
+# - create the sysvar with value of length 32, and verify it can be read correctly and now there are 4 records
+# - create the sysvar with length 31 down to 0 and verify there are still 4 records
+#
+# - create a set of sysvar names with key of length 1 to 15 with short values
+# - create a set of sysvar names with key of length 16 to 32 with short values
+# - create a set of sysvar names with key of length 1 to 15 with long values
+# - create a set of sysvar names with key of length 16 to 32 with long values
+
+

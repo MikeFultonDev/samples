@@ -316,7 +316,6 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 	}
 	rc = flocate(fp, vsamfield, FIXED_KEY_SIZE-1, __KEY_EQ);
 	if (rc) {
-		printf("Temporary Message... Fixed key %s not found\n", vsamfield);
 		return NULL;
 	}
 	while (result == PartialMatch) {
@@ -401,7 +400,6 @@ static int getKey(char** argv, Options_T* opt) {
 	}
 	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField, &reclen);
 	if (!hdr) {
-		fprintf(stderr, "Temporary Message... key not found\n");
 		return 4;
 	}
 	printfield(hdr, ValField);
@@ -435,9 +433,7 @@ static int setKey(char** argv, Options_T* opt) {
 		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
 		return 16;
 	}
-	if (!hdr) {
-		printf("Temporary Message... Key not found. Will do fwrite\n");
-	} else {
+	if (hdr) {
 		if (newreclen <= currreclen) {
 			if (newreclen < currreclen) {
 				memset(&buffer[newreclen], 0, currreclen-newreclen);
