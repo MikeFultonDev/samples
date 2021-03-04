@@ -291,7 +291,7 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, 
 	}
 }
 	
-static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T fieldName) {
+static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
 	FixedHeader_T* hdr = (FixedHeader_T*) buffer;	
 	char* vsamfield;
 	char* userfield;
@@ -301,6 +301,7 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 	KeyMatch_T result = PartialMatch;
 
 	memset(hdr, 0, sizeof(FixedHeader_T));
+	*reclen = 0;
 	switch (fieldName) {
 		case KeyField:
 			vsamfield = hdr->key;
@@ -329,6 +330,7 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 			hdr = NULL;
 		}
 	}
+	*reclen = rc;
 	return hdr;
 }
 
@@ -370,18 +372,18 @@ static int printfield(FixedHeader_T* hdr, VSAMField_T field) {
 	return rc;
 }
 
-static int setRecord(char* buffer, int *bufferLen, char** argv, Options_T* opt) {
+static int setRecord(char* buffer, size_t *bufflen, char** argv, Options_T* opt) {
 	/*
 	 * MSF - TBD - deal with PVRM and value longer than minimum
 	 */
 	FixedHeader_T* fh = (FixedHeader_T*) buffer;
-	size_t extLen=0;
+	size_t extlen=0;
   
 	memset(fh, 0, sizeof(FixedHeader_T));
-	extLen += setfield(fh, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen, KeyField);
-	extLen += setfield(fh, &argv[opt->keyValIndex][opt->valOffset], opt->valLen, ValField);
+	extlen += setfield(fh, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen, KeyField);
+	extlen += setfield(fh, &argv[opt->keyValIndex][opt->valOffset], opt->valLen, ValField);
 	
-	*bufferLen = (sizeof(FixedHeader_T) + extLen);
+	*bufflen = (sizeof(FixedHeader_T) + extlen);
 
 	return 0;
 }
@@ -390,13 +392,14 @@ static int getKey(char** argv, Options_T* opt) {
 	FILE* vsamfp;
 	int rc;
 	FixedHeader_T* hdr;
+	size_t reclen;
 	char buffer[MAX_RECLEN];
 
 	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb,type=record");
 	if (!vsamfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField);
+	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField, &reclen);
 	if (!hdr) {
 		fprintf(stderr, "Temporary Message... key not found\n");
 		return 4;
@@ -415,17 +418,19 @@ static int getKey(char** argv, Options_T* opt) {
 static int setKey(char** argv, Options_T* opt) {
 	FILE* vsamkfp;
 	FILE* vsamcfp;
-	int bufferLen;
+	size_t currreclen;
+	size_t newreclen;
 	int rc;
 	FixedHeader_T* hdr;
 	char buffer[MAX_RECLEN];
+	char invalidrecord[1] = { 1 };
 
 	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamkfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamkfp, buffer, argv, opt, KeyField);
-	rc = setRecord(buffer, &bufferLen, argv, opt);
+	hdr = vsamxlocate(vsamkfp, buffer, argv, opt, KeyField, &currreclen);
+	rc = setRecord(buffer, &newreclen, argv, opt);
 	if (rc) {
 		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
 		return 16;
@@ -433,11 +438,15 @@ static int setKey(char** argv, Options_T* opt) {
 	if (!hdr) {
 		printf("Temporary Message... Key not found. Will do fwrite\n");
 	} else {
-		/*
-		 * MSF - TBD - add logic if new record longer - can not do fupdate
-		 */
-		fupdate(buffer, bufferLen, vsamkfp);
-		return 0;
+		if (newreclen <= currreclen) {
+			if (newreclen < currreclen) {
+				memset(&buffer[newreclen], 0, currreclen-newreclen);
+			}
+			fupdate(buffer, currreclen, vsamkfp);
+			return 0;
+		} else {
+			fupdate(invalidrecord, sizeof(invalidrecord), vsamkfp);
+		}
 	}
 	rc = vsamclose(vsamkfp);
 	if (rc) {
@@ -448,8 +457,8 @@ static int setKey(char** argv, Options_T* opt) {
 	if (!vsamcfp) {
 		return 16;
 	}
-	rc = vsamwrite(buffer, bufferLen, vsamcfp);
-	if (rc != bufferLen) {
+	rc = vsamwrite(buffer, newreclen, vsamcfp);
+	if (rc != newreclen) {
 		return 16;
 	}
 	
