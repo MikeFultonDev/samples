@@ -1,11 +1,12 @@
 #!/bin/sh
 #
 # Test XSysvar by:
-# - deleting the VSAM Sphere
-# - creating the VSAM Sphere
-# - create the sysvar with value of length 0 to 15, one after another, verifying it can be read correctly
-# - verify 2 records exist - initial 'dummy' record and one fixed value record
-# - create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
+# 1) deleting the VSAM Sphere
+# 2) creating the VSAM Sphere
+# 3) create the sysvar with value of length 0 to 15, one after another, verifying it can be read correctly
+# 4) verify 2 records exist - initial 'dummy' record and one fixed value record
+
+# 5) create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
 # - create the sysvar with value of length 32, and verify it can be read correctly and now there are 4 records
 # - create the sysvar with length 31 down to 0 and verify there are still 4 records
 #
@@ -14,4 +15,81 @@
 # - create a set of sysvar names with key of length 1 to 15 with long values
 # - create a set of sysvar names with key of length 16 to 32 with long values
 
+dhlq='ibmuser.xsysvar'
+
+#
+# (1)
+#
+drm -f ${dhlq}
+
+#
+# (2)
+#
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+#
+# (3)
+#
+key='TestKey.1'
+value=''
+
+while [ ${#value} -lt 16 ]; do
+	Xsysvar -D${dhlq} "${key}=${value}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'short set': ${key}=${value}" >&2
+		exit 8
+	fi
+	out=`Xsysvar -D${dhlq} "${key}"`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'short get': ${key} (Expecting <${value}>)" >&2
+		exit 8
+	fi
+	if [ "${out}" != "${value}" ]; then	
+		echo "Failed on 'short get': ${key} (Expecting <${value}> but got <${out}>)" >&2
+		exit 8
+	fi
+	value="1${value}"
+done
+
+#
+# (4)
+#
+records=`vsamrepro ${dhlq} /dev/null | grep IDC0005I | awk ' { print $7; }'`
+if [ ${records} -ne 2 ]; then
+	echo "Expected 2 records after short 'sets' but there were ${records}" >&2
+	exit 8
+fi
+
+#
+# (5)
+#
+value="${value}2"
+Xsysvar -D${dhlq} "${key}=${value}"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Failed on 'long set': ${key}=${value}" >&2
+	exit 8
+fi
+out=`Xsysvar -D${dhlq} "${key}"`
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Failed on 'long get': ${key} (Expecting <${value}>)" >&2
+	exit 8
+fi
+if [ "${out}" != "${value}" ]; then	
+	echo "Failed on 'long get': ${key} (Expecting <${value}> but got <${out}>)" >&2
+	exit 8
+fi
+
+records=`vsamrepro ${dhlq} /dev/null | grep IDC0005I | awk ' { print $7; }'`
+if [ ${records} -ne 3 ]; then
+	echo "Expected 3 records after long 'sets' but there were ${records}" >&2
+	exit 8
+fi
 

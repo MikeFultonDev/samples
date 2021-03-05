@@ -1,0 +1,6 @@
+#!/bin/sh
+#
+# Very simple script to build Xsysvar
+#
+c89 -O2 -o ../bin/Xsysvar Xsysvar.c
+exit $?

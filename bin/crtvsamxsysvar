@@ -1,5 +1,11 @@
 #!/bin/sh
+if [ $# -lt 1 ]; then
+	echo "Syntax: $0 <db-hlq>\n" >&2
+	echo "  where <db-hlq> is the name of the VSAM Sphere to create for Xsysvar\n" >&2
+	exit 4
+fi
+hlq="$1"
 repro=/tmp/$$.vsam 
 dd if=/dev/zero bs=1 count=64 2>/dev/null >"${repro}"
-crtvsam sys1.xsysvar "${repro}" key:16:14
+crtvsam "${hlq}" "${repro}" key:16:14
 rm ${repro}

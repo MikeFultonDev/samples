@@ -26,12 +26,12 @@ typedef enum {
 } KeyMatch_T;
 
 typedef struct {
-	const char* vsamCluster;
-	int keyValIndex;
+	char vsamCluster[MAX_DSNAME_LEN+1];
 	size_t keyOffset; 
 	size_t valOffset; 
 	size_t keyLen; 
 	size_t valLen; 
+	int keyValIndex;
 	int get:1;
 	int set:1;
 } Options_T;
@@ -65,7 +65,7 @@ typedef _Packed struct {
 } FixedHeader_T;
 
 static int syntax(const char* prog) {
-	fprintf(stderr, "%s [-?hlXSPVRM] <key>[=<val>]\n", prog);
+	fprintf(stderr, "%s [-?hlXSPVRMD] <key>[=<val>]\n", prog);
 	fprintf(stderr, "Where:\n");
 	fprintf(stderr, " -?|-h: show this help\n");
 	fprintf(stderr, " -X*: variable has GLOBAL scope [default for set]\n");
@@ -80,6 +80,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, " -R<rel>: variable scope is for release <rel> of product prefix <prod> only. Requires -P to be specified\n");
 	fprintf(stderr, " -M*: variable scope is not modification specific [default for get and set]\n");
 	fprintf(stderr, " -M<mod>: variable scope is for modification <mod> of product prefix <prod> only. Requires -P to be specified\n");
+	fprintf(stderr, " -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
 	fprintf(stderr, " -l: Display (in order, separated by spaces, all matches, one per line) <sysplex> <system> <prod> <ver> <rel> <mod> <val>\n");
 	fprintf(stderr, "     [default is to just display the value]\n");
 	fprintf(stderr, "Note:\n");
@@ -112,10 +113,24 @@ static int syntax(const char* prog) {
 	return 8;
 }
 
-static int processArgs(int argc, char** argv, Options_T* opt) {
+static int setCluster(Options_T* opt, const char* hlq) {
+	size_t hlqlen = strlen(hlq);
 	int i;
+	if (hlqlen > MAX_DSNAME_LEN) {
+		fprintf(stderr, "Prefix %s is too long\n", hlq);
+		return 16;
+	}
+	memcpy(opt->vsamCluster, hlq, hlqlen+1);
+	for (i=0; i<hlqlen; ++i) {
+		opt->vsamCluster[i] = toupper(opt->vsamCluster[i]);
+	}
+	return 0;
+}
 
-	opt->vsamCluster=DEFAULT_VSAM_CLUSTER;
+static int processArgs(int argc, char** argv, Options_T* opt) {
+	int i, rc;
+
+	setCluster(opt, DEFAULT_VSAM_CLUSTER);
 
 	for (i=1; i<argc; ++i) {
 		const char* arg = argv[i];
@@ -123,9 +138,6 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 			switch (arg[1]) { 
 				case 'h':
 				case '?':
-					if (arg[2] != '\0') {
-						fprintf(stderr, "Unknown opt->on:%s\n", arg);
-					}
 					return(syntax(argv[0]));
 					break;
 				case 'l':
@@ -135,16 +147,16 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 				case 'V':
 				case 'R':
 				case 'M':
-					if (arg[2] != '\0') {
-						fprintf(stderr, "Unknown opt->on:%s\n", arg);
-						return(syntax(argv[0]));
-					} else {
-						fprintf(stderr, "Option %s not implemented yet\n", arg);
-						return 4;
+					fprintf(stderr, "Option %s not implemented yet\n", arg);
+					return 4;
+				case 'D':
+					rc = setCluster(opt, &arg[2]);
+					if (rc) {		
+						return rc;
 					}
 					break;
 				default:
-					fprintf(stderr, "Unknown opt->on:%s\n", arg);
+					fprintf(stderr, "Unknown option:%s\n", arg);
 					return(syntax(argv[0]));
 					break;
 			}
@@ -468,7 +480,6 @@ static int setKey(char** argv, Options_T* opt) {
 int main(int argc, char* argv[]) {
 	Options_T opt = { 0 };
 	int rc;
-	
 
 	if (rc=processArgs(argc, argv, &opt)) {
 		return rc;	
