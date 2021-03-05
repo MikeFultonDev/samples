@@ -260,14 +260,14 @@ static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short
 	char* buffer = (char*) hdr;
 
 	if (xlen != userlen) {
-		return NoMatch;
+		return PartialMatch;
 	}
 
 	buffer += sizeof(FixedHeader_T);
 	if (!memcmp(&buffer[xoffsetp], userkey, userlen)) {
 		return FullMatch;
 	} else {
-		return NoMatch;
+		return PartialMatch;
 	}
 }
 
