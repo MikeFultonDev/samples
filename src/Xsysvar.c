@@ -185,7 +185,7 @@ static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	char mvsname[MAX_DSNAME_LEN+5];
 	FILE* fp;
 
-	if (strlen(dataset) > MAX_DSNAME_LEN) {
+	if (strlen(dataset) + strlen(qual) > MAX_DSNAME_LEN) {
 		fprintf(stderr, "VSAM Cluster key/value dataset name invalid: %s\n", dataset);
 		return NULL;
 	}
@@ -492,5 +492,5 @@ int main(int argc, char* argv[]) {
 		fprintf(stderr, "Key not specified\n");
 		return syntax(argv[0]);
 	}
-	return 0;
+	return rc;
 }

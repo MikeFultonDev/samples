@@ -1,0 +1,100 @@
+#!/bin/sh
+#
+# Test XSysvar argument processing
+# 1) Check for error with no parms
+# 2) Check for error with invalid option 
+# 3) Check for option not implemented yet
+# 4) Check that dataset name too long generates error (more than 54)
+# 5) Check that dataset name less than 54 but too long when suffix added generates error
+
+# 5) create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
+# 6) create the sysvar with value of length 32, and verify it can be read correctly and now there are 4 records
+# 7) create the sysvar with length 0 to 32 and verify there are still 4 records
+#
+# 8) create a set of sysvar names with key of length 1 to 32 with values of length 0 to 31
+
+function XsysvarStderr {
+	set +x
+	xlines=$1
+	shift 1
+	xopts=$*
+
+	xerr=`Xsysvar ${xopts} 2>&1 1>/dev/null`
+	xrc=$?
+	echo "${xerr}" | head -${xlines}
+	return $xrc	
+}
+
+dhlq='ibmuser.chkargs'
+drm -f ${dhlq}
+
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+rclist=""
+#
+# (1)
+#
+out=`XsysvarStderr 1`
+rclist="${rclist} $?"
+if [ "${out}" != "Key not specified" ]; then
+	echo "Check for error with no parms failed" >&2
+	exit 16
+fi
+
+#
+# (2)
+#
+out=`XsysvarStderr 1 -N Key`
+rclist="${rclist} $?"
+if [ "${out}" != "Unknown option:-N" ]; then
+	echo "Check for error with invalid option failed" >&2
+	exit 16
+fi
+
+#
+# (3)
+#
+out=`XsysvarStderr 1 -l Key`
+rclist="${rclist} $?"
+if [ "${out}" != 'Option -l not implemented yet' ]; then
+	echo "Check for error with unimplemented option failed" >&2
+	exit 16
+fi
+
+#
+# (4)
+#
+toolongdsname='IBMUSER.M10123456.M20123456.M30123456.M40123456.M50123456'
+out=`XsysvarStderr 1 -D${toolongdsname} Key`
+rclist="${rclist} $?"
+if [ "${out}" != "Prefix ${toolongdsname} is too long" ]; then
+	echo "Check for error with VSAM Cluster prefix too long failed" >&2
+	exit 16
+fi
+
+#
+# (5)
+#
+prefixtoolongdsname='IBMUSER.M10123456.M20123456.M30123456'
+out=`XsysvarStderr 1 -D${prefixtoolongdsname} Key`
+rclist="${rclist} $?"
+if [ "${out}" != "VSAM Cluster key/value dataset name invalid: ${prefixtoolongdsname}" ]; then
+	echo "Check for error with VSAM Cluster dataset too long failed" >&2
+	exit 16
+fi
+
+#
+# Check that error codes are non-zero
+#
+test=1
+for rc in ${rclist}; do
+	if [ "${rc}" = "0" ]; then
+		echo "Test ${test} did not generate a non-zero RC. RC:${rc}" >&2
+		exit 16
+	fi
+	test=$((test+1))
+done
