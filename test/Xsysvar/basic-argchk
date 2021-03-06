@@ -88,6 +88,17 @@ if [ "${out}" != "VSAM Cluster key/value dataset name invalid: ${prefixtoolongds
 fi
 
 #
+# (6)
+#
+prefixnotexist="$(hlq).NOTEXIST"
+out=`XsysvarStderr 1 -D${prefixnotexist} Key`
+rclist="${rclist} $?"
+if [ "${out}" != "Unable to open VSAM dataset //'${prefixnotexist}.KEY.PATH' for read" ]; then
+	echo "Check for error with non-existant VSAM Cluster too long failed" >&2
+	exit 16
+fi
+
+#
 # Check that error codes are non-zero
 #
 test=1

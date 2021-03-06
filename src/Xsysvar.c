@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
+#include <errno.h>
 
 #define MAX_DSNAME_LEN (44)
 #define MAX_RECLEN (32761)
@@ -184,6 +185,7 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	char mvsname[MAX_DSNAME_LEN+5];
 	FILE* fp;
+	int saveerrno;
 
 	if (strlen(dataset) + strlen(qual) > MAX_DSNAME_LEN) {
 		fprintf(stderr, "VSAM Cluster key/value dataset name invalid: %s\n", dataset);
@@ -192,26 +194,34 @@ static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	sprintf(mvsname, "//'%s%s'", dataset, qual);
 	fp=fopen(mvsname, fmt);
 	if (!fp) {
-		perror(mvsname);
+		saveerrno=errno;
 		fprintf(stderr, "Unable to open VSAM dataset %s for read\n", mvsname);
+		errno=saveerrno;
+		perror(mvsname);
 	}
 	return fp;
 }
 
 static int vsamread(void* buffer, size_t numbytes, FILE* fp) {
+	int saveerrno;
 	int rc=fread(buffer, 1, numbytes, fp);
 	if (rc <= 0) {
-		perror("fread");
+		saveerrno=errno;
 		fprintf(stderr, "Unable to read from VSAM dataset\n");
+		errno=saveerrno;
+		perror("fread");
 	}
 	return rc;
 }
 
 static int vsamwrite(const char* buffer, size_t numbytes, FILE* fp) {
+	int saveerrno;
 	int rc=fwrite(buffer, 1, numbytes, fp);
 	if (rc != numbytes) {
-		perror("fwrite");
+		saveerrno=errno;
 		fprintf(stderr, "Unable to write to VSAM dataset\n");
+		errno=saveerrno;
+		perror("fwrite");
 	}
 	return rc;
 }
@@ -333,7 +343,7 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 	while (result == PartialMatch) {
 		rc = vsamread(hdr, MAX_RECLEN, fp);
 		if (rc <= 0) {
-			fprintf(stderr, "Unable to read record after flocate of %s successful\n", vsamfield);
+			fprintf(stderr, "Internal Error: Unable to read record after flocate of %s successful\n", vsamfield);
 			return NULL;
 		}
 		result = vsamxmatch(hdr, userfield, userlen, fieldName);
@@ -346,11 +356,13 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 }
 
 static int vsamclose(FILE* fp) {
+	int saveerrno;
 	int rc = fclose(fp);
 	if (rc) {
-		/* MSF - TBD - get dataset name here for better diagnostics */
-		perror("fclose");
+		saveerrno=errno;
 		fprintf(stderr, "Unable to close VSAM dataset\n");
+		errno=saveerrno;
+		perror("fclose");
 	}
 	return rc;
 }
