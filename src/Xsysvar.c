@@ -7,6 +7,7 @@
 
 #define MAX_DSNAME_LEN (44)
 #define MAX_RECLEN (32761)
+#define FIXED_PRODID_SIZE (4)
 #define FIXED_KEY_SIZE (16)
 #define FIXED_VAL_SIZE (16)
 #define CLUSTER_QUAL ""
@@ -37,28 +38,34 @@ typedef struct {
 	int set:1;
 } Options_T;
 
-/*
- * NOTE: The following structure layout can not be changed without also 
- *       re-generating the VSAM Sphere as well as updating the code for
- *       calculating how to read/write to instances of this structure.
- *       The last byte of the fixed character fields is always 0x00.
- */
 typedef _Packed struct {
-	char inactive;
-	char prodID[4];
-	char ver[3];
-	char rel[3];
-	char mod[3];
-	char key[FIXED_KEY_SIZE];
-	char val[FIXED_VAL_SIZE];
-	unsigned short prodIDXOffset;
-	unsigned short prodIDXLen;
+	unsigned short sysplexXOffset;
+	unsigned short sysplexXLen;
+	unsigned short systemXOffset;
+	unsigned short systemXLen;
 	unsigned short verXOffset;
 	unsigned short verXLen;
 	unsigned short relXOffset;
 	unsigned short relXLen;
 	unsigned short modXOffset;
 	unsigned short modXLen;
+} FilterHeader_T;
+
+/*
+ * NOTE: The following structure layout CAN NOT be changed without also 
+ *       re-generating the VSAM Sphere as well as updating the code for
+ *       calculating how to read/write to instances of this structure.
+ *       The last byte of the fixed character fields is always 0x00.
+ */
+typedef _Packed struct {
+	char inactive;
+	char prodID[FIXED_PRODID_SIZE];
+	char key[FIXED_KEY_SIZE];
+	char val[FIXED_VAL_SIZE];
+	unsigned short prodIDXOffset;
+	unsigned short prodIDXLen;
+	unsigned short filterXOffset;
+	unsigned short filterXLen;
 	unsigned short keyXOffset;
 	unsigned short keyXLen;
 	unsigned short valXOffset;
@@ -111,7 +118,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "   * * IGY 6 2 0 CSI SMPE.IGY620.CSI\n");
 	fprintf(stderr, "   * * ZOS 2 4 0 CSI SMPE.ZOS240.CSI\n");
 
-	return 8;
+	return 1;
 }
 
 static int setCluster(Options_T* opt, const char* hlq) {
@@ -228,7 +235,7 @@ static int vsamwrite(const char* buffer, size_t numbytes, FILE* fp) {
 
 static int setxfield(FixedHeader_T* hdr, unsigned short* xoffsetp, unsigned short* xlenp, unsigned short xlen, const char* xfield) {
 	char* buffer = (char*) hdr;
-	size_t bufferLen = (hdr->verXLen + hdr->relXLen + hdr->modXLen + hdr->keyXLen + hdr->valXLen);
+	size_t bufferLen = (hdr->filterXLen + hdr->keyXLen + hdr->valXLen);
 	buffer += sizeof(FixedHeader_T);
 	if (bufferLen + xlen > MAX_RECLEN) {
 		fprintf(stderr, "Total length of new record would exceed maximum record length. copy failed\n");
@@ -426,13 +433,13 @@ static int getKey(char** argv, Options_T* opt) {
 	if (!hdr) {
 		return 4;
 	}
-	printfield(hdr, ValField);
+	rc = printfield(hdr, ValField);
 	if (rc <= 0) {
-		return 16;
+		return 8;
 	}
 	rc = vsamclose(vsamfp);
 	if (rc) {
-		return 16;
+		return 12;
 	}
 	return 0;
 }
@@ -455,7 +462,7 @@ static int setKey(char** argv, Options_T* opt) {
 	rc = setRecord(buffer, &newreclen, argv, opt);
 	if (rc) {
 		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
-		return 16;
+		return 12;
 	}
 	if (hdr) {
 		if (newreclen <= currreclen) {
@@ -470,21 +477,21 @@ static int setKey(char** argv, Options_T* opt) {
 	}
 	rc = vsamclose(vsamkfp);
 	if (rc) {
-		return 16;
+		return 10;
 	}
 
 	vsamcfp = vsamopen(opt->vsamCluster, CLUSTER_QUAL, "rb+,type=record");
 	if (!vsamcfp) {
-		return 16;
+		return 7;
 	}
 	rc = vsamwrite(buffer, newreclen, vsamcfp);
 	if (rc != newreclen) {
-		return 16;
+		return 9;
 	}
 	
 	rc = vsamclose(vsamcfp);
 	if (rc) {
-		return 16;
+		return 13;
 	}
 	return 0;
 }

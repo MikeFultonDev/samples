@@ -6,6 +6,6 @@ if [ $# -lt 1 ]; then
 fi
 hlq="$1"
 repro=/tmp/$$.vsam 
-dd if=/dev/zero bs=1 count=64 2>/dev/null >"${repro}"
-crtvsam "${hlq}" "${repro}" key:16:14
+dd if=/dev/zero bs=1 count=55 2>/dev/null >"${repro}"
+crtvsam "${hlq}" "${repro}" prodid:4:1 key:16:5
 rm ${repro}

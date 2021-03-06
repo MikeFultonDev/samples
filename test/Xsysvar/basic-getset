@@ -44,11 +44,11 @@ while [ ${#value} -lt 16 ]; do
 	out=`Xsysvar -D${dhlq} "${key}"`
 	rc=$?
 	if [ $rc -gt 0 ]; then
-		echo "Failed on 'short get': ${key} (Expecting <${value}>)" >&2
+		echo "Failed on 'short get' (test 3): ${key} non-zero rc:${rc}" >&2
 		exit 8
 	fi
 	if [ "${out}" != "${value}" ]; then	
-		echo "Failed on 'short get': ${key} (Expecting <${value}> but got <${out}>)" >&2
+		echo "Failed on 'short get' (test 3): ${key} (Expecting <${value}> but got <${out}>)" >&2
 		exit 8
 	fi
 	value="1${value}"
@@ -76,7 +76,7 @@ fi
 out=`Xsysvar -D${dhlq} "${key}"`
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Failed on 'long get': ${key} (Expecting <${value}>)" >&2
+	echo "Failed on 'long get': ${key}. Expected non-zero rc but got ${rc}" >&2
 	exit 8
 fi
 if [ "${out}" != "${value}" ]; then	
@@ -103,7 +103,7 @@ fi
 out=`Xsysvar -D${dhlq} "${key}"`
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Failed on 'longer get': ${key} (Expecting <${value}>)" >&2
+	echo "Failed on 'longer get': ${key}. Got non-zero rc: ${rc}" >&2
 	exit 8
 fi
 if [ "${out}" != "${value}" ]; then	
@@ -132,11 +132,11 @@ while [ ${#value} -lt 33 ]; do
 	out=`Xsysvar -D${dhlq} "${key}"`
 	rc=$?
 	if [ $rc -gt 0 ]; then
-		echo "Failed on 'short get': ${key} (Expecting <${value}>)" >&2
+		echo "Failed on 'short get' (test 7): ${key}. Got non-zero rc:${rc}" >&2
 		exit 8
 	fi
 	if [ "${out}" != "${value}" ]; then	
-		echo "Failed on 'short get': ${key} (Expecting <${value}> but got <${out}>)" >&2
+		echo "Failed on 'short get' (test 7): ${key} (Expecting <${value}> but got <${out}>)" >&2
 		exit 8
 	fi
 	value="1${value}"
@@ -164,7 +164,7 @@ while [ ${#key} -lt 33 ]; do
 	out=`Xsysvar -D${dhlq} "${key}"`
 	rc=$?
 	if [ $rc -gt 0 ]; then
-		echo "Failed on 'key get': ${key} (Expecting <${value}>)" >&2
+		echo "Failed on 'key get': ${key}. Got non-zero rc ${rc}" >&2
 		exit 8
 	fi
 	if [ "${out}" != "${value}" ]; then	

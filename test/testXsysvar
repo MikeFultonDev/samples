@@ -1,0 +1,13 @@
+#!/bin/sh
+cd Xsysvar
+scripts="./*" 
+maxrc=0
+for script in $scripts; do
+	echo "Test ${script}"
+	${script}
+	rc=$?
+	if [ $rc -gt $maxrc ]; then
+		maxrc=$rc
+	fi
+done
+exit $maxrc
