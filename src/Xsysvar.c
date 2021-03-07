@@ -16,9 +16,15 @@
 const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
 
 typedef enum {
-	NoField=0,
-	KeyField=1,
-	ValField=2
+	KeyField=0,
+	ValField=1,
+	ProdIDField=2,
+	SysplexField=3,
+	SystemField=4,
+	VerField=5,
+	RelField=6,
+	ModField=7,
+	NumFields=7 
 } VSAMField_T;
 
 typedef enum {
@@ -29,11 +35,9 @@ typedef enum {
 
 typedef struct {
 	char vsamCluster[MAX_DSNAME_LEN+1];
-	size_t keyOffset; 
-	size_t valOffset; 
-	size_t keyLen; 
-	size_t valLen; 
-	int keyValIndex;
+	size_t argindex[NumFields];
+	size_t offset[NumFields];
+	size_t len[NumFields];
 	int get:1;
 	int set:1;
 } Options_T;
@@ -64,12 +68,12 @@ typedef _Packed struct {
 	char val[FIXED_VAL_SIZE];
 	unsigned short prodIDXOffset;
 	unsigned short prodIDXLen;
-	unsigned short filterXOffset;
-	unsigned short filterXLen;
 	unsigned short keyXOffset;
 	unsigned short keyXLen;
 	unsigned short valXOffset;
 	unsigned short valXLen;
+	unsigned short filterXOffset;
+	unsigned short filterXLen;
 } FixedHeader_T;
 
 static int syntax(const char* prog) {
@@ -171,17 +175,18 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 		} else {	
 			char* eqp;
 			int len = strlen(arg);
-			opt->keyValIndex = i;
-			opt->keyOffset = 0;
+			opt->argindex[KeyField] = i;
+			opt->offset[KeyField] = 0;
 			eqp = strchr(arg, '=');
 			if (eqp) {
 				opt->set = 1;
-				opt->valOffset = (eqp-arg)+1;
-				opt->keyLen = (eqp-arg);
-				opt->valLen = len-opt->valOffset;
+				opt->argindex[ValField] = i;
+				opt->offset[ValField] = (eqp-arg)+1;
+				opt->len[KeyField] = (eqp-arg);
+				opt->len[ValField] = len-opt->offset[ValField];
 			} else {
 				opt->get = 1;
-				opt->keyLen = len;
+				opt->len[KeyField] = len;
 			}
 		}
 	}
@@ -209,9 +214,9 @@ static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	return fp;
 }
 
-static int vsamread(void* buffer, size_t numbytes, FILE* fp) {
+static int vsamread(void* buff, size_t numbytes, FILE* fp) {
 	int saveerrno;
-	int rc=fread(buffer, 1, numbytes, fp);
+	int rc=fread(buff, 1, numbytes, fp);
 	if (rc <= 0) {
 		saveerrno=errno;
 		fprintf(stderr, "Unable to read from VSAM dataset\n");
@@ -221,9 +226,9 @@ static int vsamread(void* buffer, size_t numbytes, FILE* fp) {
 	return rc;
 }
 
-static int vsamwrite(const char* buffer, size_t numbytes, FILE* fp) {
+static int vsamwrite(const char* buff, size_t numbytes, FILE* fp) {
 	int saveerrno;
-	int rc=fwrite(buffer, 1, numbytes, fp);
+	int rc=fwrite(buff, 1, numbytes, fp);
 	if (rc != numbytes) {
 		saveerrno=errno;
 		fprintf(stderr, "Unable to write to VSAM dataset\n");
@@ -233,17 +238,26 @@ static int vsamwrite(const char* buffer, size_t numbytes, FILE* fp) {
 	return rc;
 }
 
+static size_t computebufflen(FixedHeader_T* hdr) {
+	size_t len = hdr->filterXLen + hdr->keyXLen + hdr->valXLen;
+	if (hdr->filterXLen > 0) {
+		FilterHeader_T* f = (FilterHeader_T*) (((char*) hdr) + hdr->filterXOffset);
+		len += (f->sysplexXLen + f->systemXLen + f->verXLen + f->relXLen + f->modXLen);
+	}
+	return len;
+}
+		
 static int setxfield(FixedHeader_T* hdr, unsigned short* xoffsetp, unsigned short* xlenp, unsigned short xlen, const char* xfield) {
-	char* buffer = (char*) hdr;
-	size_t bufferLen = (hdr->filterXLen + hdr->keyXLen + hdr->valXLen);
-	buffer += sizeof(FixedHeader_T);
-	if (bufferLen + xlen > MAX_RECLEN) {
+	char* buff = (char*) hdr;
+	size_t bufflen = computebufflen(hdr);
+	buff += sizeof(FixedHeader_T);
+	if (bufflen + xlen > MAX_RECLEN) {
 		fprintf(stderr, "Total length of new record would exceed maximum record length. copy failed\n");
 		return 0;
 	}
-	*xoffsetp = bufferLen;
+	*xoffsetp = bufflen;
 	*xlenp = xlen;
-	memcpy(&buffer[*xoffsetp], xfield, xlen);
+	memcpy(&buff[*xoffsetp], xfield, xlen);
 	return xlen;
 }
 
@@ -274,14 +288,14 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 }
 
 static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short xlen, unsigned short userlen, const char* userkey) {
-	char* buffer = (char*) hdr;
+	char* buff = (char*) hdr;
 
 	if (xlen != userlen) {
 		return PartialMatch;
 	}
 
-	buffer += sizeof(FixedHeader_T);
-	if (!memcmp(&buffer[xoffsetp], userkey, userlen)) {
+	buff += sizeof(FixedHeader_T);
+	if (!memcmp(&buff[xoffsetp], userkey, userlen)) {
 		return FullMatch;
 	} else {
 		return PartialMatch;
@@ -320,8 +334,8 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, 
 	}
 }
 	
-static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
-	FixedHeader_T* hdr = (FixedHeader_T*) buffer;	
+static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
+	FixedHeader_T* hdr = (FixedHeader_T*) buff;	
 	char* vsamfield;
 	char* userfield;
 	size_t vsamfieldlen;
@@ -334,9 +348,9 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buffer, char** argv, Options_T
 	switch (fieldName) {
 		case KeyField:
 			vsamfield = hdr->key;
-			userfield = &argv[opt->keyValIndex][opt->keyOffset];
-			userlen = opt->keyLen;
-			vsamfieldlen = (userlen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : opt->keyLen;
+			userfield = &argv[opt->argindex[KeyField]][opt->offset[KeyField]];
+			userlen = opt->len[KeyField];
+			vsamfieldlen = (userlen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : userlen;
 			memcpy(vsamfield, userfield, vsamfieldlen);
 			break;
 		default:
@@ -375,11 +389,11 @@ static int vsamclose(FILE* fp) {
 }
 
 static int printxfield(const FixedHeader_T* hdr, const char* fixed, size_t fixedlen, size_t offset, size_t xlen) {
-	const char* buffer = (((const char*) hdr) + sizeof(FixedHeader_T));
+	const char* buff = (((const char*) hdr) + sizeof(FixedHeader_T));
 	int rc;
 
 	if (xlen > 0) {	
-		rc = printf("%s%.*s\n", fixed, xlen, &buffer[offset]);
+		rc = printf("%s%.*s\n", fixed, xlen, &buff[offset]);
 	} else {
 		rc = printf("%s\n", fixed);
 	}
@@ -402,16 +416,16 @@ static int printfield(FixedHeader_T* hdr, VSAMField_T field) {
 	return rc;
 }
 
-static int setRecord(char* buffer, size_t *bufflen, char** argv, Options_T* opt) {
+static int setRecord(char* buff, size_t *bufflen, char** argv, Options_T* opt) {
 	/*
 	 * MSF - TBD - deal with PVRM and value longer than minimum
 	 */
-	FixedHeader_T* fh = (FixedHeader_T*) buffer;
+	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
   
 	memset(fh, 0, sizeof(FixedHeader_T));
-	extlen += setfield(fh, &argv[opt->keyValIndex][opt->keyOffset], opt->keyLen, KeyField);
-	extlen += setfield(fh, &argv[opt->keyValIndex][opt->valOffset], opt->valLen, ValField);
+	extlen += setfield(fh, &argv[opt->argindex[KeyField]][opt->offset[KeyField]], opt->len[KeyField], KeyField);
+	extlen += setfield(fh, &argv[opt->argindex[ValField]][opt->offset[ValField]], opt->len[ValField], ValField);
 	
 	*bufflen = (sizeof(FixedHeader_T) + extlen);
 
@@ -423,13 +437,13 @@ static int getKey(char** argv, Options_T* opt) {
 	int rc;
 	FixedHeader_T* hdr;
 	size_t reclen;
-	char buffer[MAX_RECLEN];
+	char buff[MAX_RECLEN];
 
 	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb,type=record");
 	if (!vsamfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamfp, buffer, argv, opt, KeyField, &reclen);
+	hdr = vsamxlocate(vsamfp, buff, argv, opt, KeyField, &reclen);
 	if (!hdr) {
 		return 4;
 	}
@@ -451,15 +465,15 @@ static int setKey(char** argv, Options_T* opt) {
 	size_t newreclen;
 	int rc;
 	FixedHeader_T* hdr;
-	char buffer[MAX_RECLEN];
+	char buff[MAX_RECLEN];
 	char invalidrecord[1] = { 1 };
 
 	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamkfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamkfp, buffer, argv, opt, KeyField, &currreclen);
-	rc = setRecord(buffer, &newreclen, argv, opt);
+	hdr = vsamxlocate(vsamkfp, buff, argv, opt, KeyField, &currreclen);
+	rc = setRecord(buff, &newreclen, argv, opt);
 	if (rc) {
 		fprintf(stderr, "Key/Value information is too large for VSAM record. Maximum Length is %d\n", MAX_RECLEN);
 		return 12;
@@ -467,9 +481,9 @@ static int setKey(char** argv, Options_T* opt) {
 	if (hdr) {
 		if (newreclen <= currreclen) {
 			if (newreclen < currreclen) {
-				memset(&buffer[newreclen], 0, currreclen-newreclen);
+				memset(&buff[newreclen], 0, currreclen-newreclen);
 			}
-			fupdate(buffer, currreclen, vsamkfp);
+			fupdate(buff, currreclen, vsamkfp);
 			return 0;
 		} else {
 			fupdate(invalidrecord, sizeof(invalidrecord), vsamkfp);
@@ -484,7 +498,7 @@ static int setKey(char** argv, Options_T* opt) {
 	if (!vsamcfp) {
 		return 7;
 	}
-	rc = vsamwrite(buffer, newreclen, vsamcfp);
+	rc = vsamwrite(buff, newreclen, vsamcfp);
 	if (rc != newreclen) {
 		return 9;
 	}
