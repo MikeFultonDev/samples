@@ -1,20 +1,38 @@
 #!/bin/sh
+if [ $# -lt 1 ]; then
+	echo "Syntax: $0 <VSAM Sphere>" >&2
+	exit 4
+fi
+
 dataset=$(echo "$1" | tr '[:lower:]' '[:upper:]');
-out=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
+cout=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
   LISTCAT CLUSTER ENTRIES(${dataset}) ALL
 zz
 rc=$?
-echo "${out}"
+echo "${cout}"
 if [ ${rc} -gt 0 ]; then
 	exit $rc
 fi
-aixes=`echo "${out}" | awk '/AIX-/ { print substr($1,10); }'`
+
+data=`echo "${cout}" | awk '/DATA-/ { print substr($1,10); }'`
+for d in ${data}; do
+	dout=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
+  LISTCAT DATA ENTRIES(${d}) ALL
+zz
+	rc=$?
+	echo "${dout}"
+	if [ ${rc} -gt 0 ]; then
+		exit $rc
+	fi
+done
+
+aixes=`echo "${cout}" | awk '/AIX-/ { print substr($1,10); }'`
 for aix in ${aixes}; do
-	out=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
+	aout=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
   LISTCAT AIX ENTRIES(${aix}) ALL
 zz
 	rc=$?
-	echo "${out}"
+	echo "${aout}"
 	if [ ${rc} -gt 0 ]; then
 		exit $rc
 	fi

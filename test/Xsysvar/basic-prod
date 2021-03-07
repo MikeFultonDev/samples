@@ -1,0 +1,104 @@
+#!/bin/sh
+#
+# Test XSysvar by:
+# 1) create sysvar with no prodid
+# 2) create sysvar with short prodid
+# 3) create sysvar with medium prodid
+# 4) create sysvar with long prodid
+# 5) get sysvar with no prodid
+# 6) get sysvar with short prodid
+# 7) get sysvar with medium prodid
+# 8) get sysvar with long prodid
+
+dhlq='ibmuser.prodid'
+
+drm -f ${dhlq}
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+key='CSI'
+#
+# (1)
+#
+v1='MVS.GLOBAL.CSI'
+Xsysvar -D${dhlq} "${key}=${v1}"
+rclist="${rclist} ${rc}"
+
+#
+# (2)
+#
+v2='ZOSPM.IGY630.CSI'
+p2='IGY'
+Xsysvar -D${dhlq} "-P${p2}" "${key}=${v2}"
+rclist="${rclist} ${rc}"
+
+#
+# (3)
+#
+v3='MVS.GLOBAL.CSI'
+p3='z/OS Base Products'
+Xsysvar -D${dhlq} "-P${p3}" "${key}=${v3}"
+rclist="${rclist} ${rc}"
+
+#
+# (4)
+#
+v4='Nothing to do with SMP/E CSI'
+p4='Open Source implementation of the Giddlezorp protocol'
+Xsysvar -D${dhlq} "-P${p4}" "${key}=${v4}"
+rclist="${rclist} ${rc}"
+
+#
+# (5)
+#
+out=`Xsysvar -D${dhlq} "${key}"`
+rclist="${rclist} ${rc}"
+if [ "${out}" != "${v1}" ]; then
+	echo "Error retrieving ${key} with no prodid (expected ${v1} but got ${out})" >&2
+	exit 1
+fi
+
+#
+# (6)
+#
+out=`Xsysvar -D${dhlq} -P${p2} "${key}"`
+rclist="${rclist} ${rc}"
+if [ "${out}" != "${v2}" ]; then
+	echo "Error retrieving ${key} with prodid ${p2} (expected ${v2} but got ${out})" >&2
+	exit 1
+fi
+
+#
+# (7)
+#
+out=`Xsysvar -D${dhlq} "-P${p3}" "${key}"`
+rclist="${rclist} ${rc}"
+if [ "${out}" != "${v3}" ]; then
+	echo "Error retrieving ${key} with prodid ${p3} (expected ${v3} but got ${out})" >&2
+	exit 1
+fi
+
+#
+# (8)
+#
+out=`Xsysvar -D${dhlq} "-P${p4}" "${key}"`
+rclist="${rclist} ${rc}"
+if [ "${out}" != "${v4}" ]; then
+	echo "Error retrieving ${key} with prodid ${p4} (expected ${v4} but got ${out})" >&2
+	exit 1
+fi
+
+#
+# Check that error codes are non-zero
+#
+test=1  
+for rc in ${rclist}; do
+ 	if [ "${rc}" != "0" ]; then
+        	echo "Test ${test} did not generate a zero RC. RC:${rc}" >&2
+                exit 16
+        fi      
+        test=$((test+1))
+done

@@ -139,6 +139,19 @@ static int setCluster(Options_T* opt, const char* hlq) {
 	return 0;
 }
 
+static int setProdID(Options_T* opt, char** argv, int i, size_t offset) {
+	size_t prodIDLen = strlen(&argv[i][offset]);
+        if (prodIDLen > MAX_RECLEN) {          
+                fprintf(stderr, "PRODID is too long (limit is %d)\n", MAX_RECLEN);
+                return 16;              
+        }                       
+	opt->argindex[ProdIDField] = i;
+	opt->offset[ProdIDField] = offset;
+	opt->len[ProdIDField] = prodIDLen;
+
+        return 0;         		
+}
+
 static int processArgs(int argc, char** argv, Options_T* opt) {
 	int i, rc;
 
@@ -155,12 +168,17 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 				case 'l':
 				case 'X':
 				case 'S':
-				case 'P':
 				case 'V':
 				case 'R':
 				case 'M':
 					fprintf(stderr, "Option %s not implemented yet\n", arg);
 					return 4;
+				case 'P':
+					rc = setProdID(opt, argv, i, 2);
+					if (rc) {		
+						return rc;
+					}
+					break;
 				case 'D':
 					rc = setCluster(opt, &arg[2]);
 					if (rc) {		
@@ -214,10 +232,10 @@ static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	return fp;
 }
 
-static int vsamread(void* buff, size_t numbytes, FILE* fp) {
+static size_t vsamread(void* buff, size_t numbytes, FILE* fp) {
 	int saveerrno;
-	int rc=fread(buff, 1, numbytes, fp);
-	if (rc <= 0) {
+	size_t rc=fread(buff, 1, numbytes, fp);
+	if (rc == 0 && !feof(fp)) {
 		saveerrno=errno;
 		fprintf(stderr, "Unable to read from VSAM dataset\n");
 		errno=saveerrno;
@@ -281,6 +299,15 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 				return 0;
 			}
                         break;
+		case ProdIDField:
+			if (len >= FIXED_PRODID_SIZE) {
+				memcpy(hdr->prodID, field, FIXED_PRODID_SIZE-1);
+				return setxfield(hdr, &hdr->prodIDXOffset, &hdr->prodIDXLen, len-FIXED_PRODID_SIZE+1, &field[FIXED_PRODID_SIZE-1]);
+			} else {
+				memcpy(hdr->prodID, field, len);
+				return 0;
+			}
+                        break;
                 default:
                         fprintf(stderr, "TBD: Implement setfield of other fields\n");
 	                exit(16);
@@ -314,20 +341,50 @@ static int cmpfield(FixedHeader_T* hdr, const char* vsamfield, const char* userf
 	}
 }
 
-static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, const char* field, size_t len, VSAMField_T fieldName) {
+static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, Options_T* opt, char** argv, const char* field, size_t len, VSAMField_T fieldName) {
 	KeyMatch_T fieldCheck;
 	switch (fieldName) {
-		case KeyField:
+		case KeyField: {
+			const char* prodID;
+			size_t prodIDLen;
+			size_t cmplen = (len < FIXED_KEY_SIZE) ? len : FIXED_KEY_SIZE-1;
+
+			fieldCheck = cmpfield(hdr, hdr->key, field, cmplen);
+			if (fieldCheck != FullMatch) {
+				return fieldCheck;
+			}
 			if (len >= FIXED_KEY_SIZE) {
-				fieldCheck = cmpfield(hdr, hdr->key, field, FIXED_KEY_SIZE-1);
-				if (fieldCheck == FullMatch) {
-					return cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
-				} else {
+				fieldCheck = cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
+				if (fieldCheck != FullMatch) {
 					return fieldCheck;
 				}
-			} else {
-				return cmpfield(hdr, hdr->key, field, len);
 			}
+			/*
+			 * MSF TBD: this needs to check all filters, not just the prod id
+			 * to determine if there is an exact match
+			 */
+			prodID = &argv[opt->argindex[ProdIDField]][opt->offset[ProdIDField]];
+			prodIDLen = opt->len[ProdIDField];
+			fieldCheck = vsamxmatch(hdr, opt, argv, prodID, prodIDLen, ProdIDField);
+			return fieldCheck;
+		}
+		case ProdIDField:
+			/*
+			 * ProdID is a filter and is therefore either a full match or else searching should 
+			 * continue (i.e. it is a partial match
+			 */
+			if (len >= FIXED_PRODID_SIZE) {
+				fieldCheck = cmpfield(hdr, hdr->prodID, field, FIXED_PRODID_SIZE-1);
+				if (fieldCheck == FullMatch) {
+					fieldCheck = cmpxfield(hdr, hdr->prodIDXOffset, hdr->prodIDXLen, len-FIXED_PRODID_SIZE+1, &field[FIXED_PRODID_SIZE-1]);
+				}
+			} else {
+				fieldCheck = cmpfield(hdr, hdr->prodID, field, len);
+			}
+			if (fieldCheck == NoMatch) {
+				fieldCheck = PartialMatch; 
+			}
+			return fieldCheck;
 		default:
 			fprintf(stderr, "TBD: Implement extended match of other fields\n");
 			exit(16);
@@ -363,11 +420,13 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, char** argv, Options_T* 
 	}
 	while (result == PartialMatch) {
 		rc = vsamread(hdr, MAX_RECLEN, fp);
-		if (rc <= 0) {
-			fprintf(stderr, "Internal Error: Unable to read record after flocate of %s successful\n", vsamfield);
+		if (rc == 0) {
+			if (!feof(fp)) {
+				fprintf(stderr, "Internal Error: Unable to read record after flocate of %s successful\n", vsamfield);
+			}
 			return NULL;
 		}
-		result = vsamxmatch(hdr, userfield, userlen, fieldName);
+		result = vsamxmatch(hdr, opt, argv, userfield, userlen, fieldName);
 		if (result == NoMatch) {
 			hdr = NULL;
 		}
@@ -418,7 +477,7 @@ static int printfield(FixedHeader_T* hdr, VSAMField_T field) {
 
 static int setRecord(char* buff, size_t *bufflen, char** argv, Options_T* opt) {
 	/*
-	 * MSF - TBD - deal with PVRM and value longer than minimum
+	 * MSF - TBD - deal with XSVRM
 	 */
 	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
@@ -426,6 +485,7 @@ static int setRecord(char* buff, size_t *bufflen, char** argv, Options_T* opt) {
 	memset(fh, 0, sizeof(FixedHeader_T));
 	extlen += setfield(fh, &argv[opt->argindex[KeyField]][opt->offset[KeyField]], opt->len[KeyField], KeyField);
 	extlen += setfield(fh, &argv[opt->argindex[ValField]][opt->offset[ValField]], opt->len[ValField], ValField);
+	extlen += setfield(fh, &argv[opt->argindex[ProdIDField]][opt->offset[ProdIDField]], opt->len[ProdIDField], ProdIDField);
 	
 	*bufflen = (sizeof(FixedHeader_T) + extlen);
 

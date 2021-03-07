@@ -12,7 +12,7 @@
 #
 # 8) create a set of sysvar names with key of length 1 to 32 with values of length 0 to 31
 
-dhlq='ibmuser.xsysvar'
+dhlq='ibmuser.getset'
 
 #
 # (1)
