@@ -139,15 +139,15 @@ static int setCluster(Options_T* opt, const char* hlq) {
 	return 0;
 }
 
-static int setProdID(Options_T* opt, char** argv, int i, size_t offset) {
-	size_t prodIDLen = strlen(&argv[i][offset]);
-        if (prodIDLen > MAX_RECLEN) {          
-                fprintf(stderr, "PRODID is too long (limit is %d)\n", MAX_RECLEN);
+static int setField(Options_T* opt, char** argv, int i, size_t offset, VSAMField_T field) {
+	size_t len = strlen(&argv[i][offset]);
+        if (len > MAX_RECLEN) {          
+                fprintf(stderr, "Field is too long (limit is %d)\n", MAX_RECLEN);
                 return 16;              
         }                       
-	opt->argindex[ProdIDField] = i;
-	opt->offset[ProdIDField] = offset;
-	opt->len[ProdIDField] = prodIDLen;
+	opt->argindex[field] = i;
+	opt->offset[field] = offset;
+	opt->len[field] = len;
 
         return 0;         		
 }
@@ -163,21 +163,25 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 			switch (arg[1]) { 
 				case 'h':
 				case '?':
-					return(syntax(argv[0]));
+					rc = syntax(argv[0]);
 					break;
-				case 'l':
 				case 'X':
+					rc = setField(opt, argv, i, 2, SysplexField);
+					break;
 				case 'S':
+					rc = setField(opt, argv, i, 2, SystemField);
+					break;
 				case 'V':
+					rc = setField(opt, argv, i, 2, VerField);
+					break;
 				case 'R':
+					rc = setField(opt, argv, i, 2, RelField);
+					break;
 				case 'M':
-					fprintf(stderr, "Option %s not implemented yet\n", arg);
-					return 4;
+					rc = setField(opt, argv, i, 2, ModField);
+					break;
 				case 'P':
-					rc = setProdID(opt, argv, i, 2);
-					if (rc) {		
-						return rc;
-					}
+					rc = setField(opt, argv, i, 2, ProdIDField);
 					break;
 				case 'D':
 					rc = setCluster(opt, &arg[2]);
@@ -185,6 +189,9 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 						return rc;
 					}
 					break;
+				case 'l':
+					fprintf(stderr, "Option %s not implemented yet\n", arg);
+					rc = 4;
 				default:
 					fprintf(stderr, "Unknown option:%s\n", arg);
 					return(syntax(argv[0]));
