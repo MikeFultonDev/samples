@@ -3,15 +3,11 @@
 # Test XSysvar argument processing
 # 1) Check for error with no parms
 # 2) Check for error with invalid option 
-# 3) Check for option not implemented yet
+# 3) verify that -l can't be specified with a set
 # 4) Check that dataset name too long generates error (more than 54)
 # 5) Check that dataset name less than 54 but too long when suffix added generates error
-
-# 5) create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
-# 6) create the sysvar with value of length 32, and verify it can be read correctly and now there are 4 records
-# 7) create the sysvar with length 0 to 32 and verify there are still 4 records
-#
-# 8) create a set of sysvar names with key of length 1 to 32 with values of length 0 to 31
+# 6) Check that dataset name that does not exist generates error
+# 7) verify that -V, -R, -M can't be specified if -P isn't specified
 
 function XsysvarStderr {
 	set +x
@@ -25,7 +21,7 @@ function XsysvarStderr {
 	return $xrc	
 }
 
-dhlq='ibmuser.chkargs'
+dhlq='ibmuser.argchk'
 drm -f ${dhlq}
 
 crtvsamxsysvar ${dhlq}
@@ -56,12 +52,12 @@ if [ "${out}" != "Unknown option:-N" ]; then
 fi
 
 #
-# (3)
+# 3
 #
-out=`XsysvarStderr 1 -l Key`
+out=`XsysvarStderr 1 -D${dhlq} -l Key=Val`
 rclist="${rclist} $?"
-if [ "${out}" != 'Option -l not implemented yet' ]; then
-	echo "Check for error with unimplemented option failed" >&2
+if [ "${out}" != "-l can not be specified when setting a variable" ]; then
+	echo "Check for error with -l and Key=Val failed" >&2
 	exit 16
 fi
 
@@ -97,6 +93,20 @@ if [ "${out}" != "Unable to open VSAM dataset //'${prefixnotexist}.KEY.PATH' for
 	echo "Check for error with non-existant VSAM Cluster too long failed" >&2
 	exit 16
 fi
+
+#
+# (7,8,9)
+#
+msg='-V, -R, and -M can only be specified if -P is specified'
+filter='-VVersion -RRelease -MMod'
+for f in ${filter}; do
+	out=`XsysvarStderr 1 -D${dhlq} ${f} Key`
+	rclist="${rclist} $?"
+	if [ "${out}" != "${msg}" ]; then
+		echo "Check for error with ${f} and no -P failed" >&2
+		exit 16
+	fi
+done
 
 #
 # Check that error codes are non-zero

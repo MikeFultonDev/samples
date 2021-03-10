@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ $# -lt 1 ]; then
+	od -A x -t x
+else
+	od -A x -t x <"${1}"
+fi

@@ -12,19 +12,32 @@
 #define FIXED_VAL_SIZE (16)
 #define CLUSTER_QUAL ""
 #define KEY_QUAL ".KEY.PATH"
+#define PRODID_QUAL ".PRODID.PATH"
+
+#define PRINT_FIELD_SEP "\t"
+#define PRINT_NL  "\n"
 
 const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
 
+/*
+ * NOTE: This enum ordering can not be changed without changing the
+ * corresponding FilterHeader_T and FixedHeader_T structures
+ */
 typedef enum {
-	KeyField=0,
-	ValField=1,
-	ProdIDField=2,
-	SysplexField=3,
-	SystemField=4,
-	VerField=5,
-	RelField=6,
-	ModField=7,
-	NumFields=7 
+	SysplexField=0,
+	SystemField=1,
+	VerField=2,
+	RelField=3,
+	ModField=4,
+
+	KeyField=5,
+	ValField=6,
+	ProdIDField=7,
+
+	FirstFilterField=0,
+	LastFilterField=4,
+	NumFilterFields=5,
+	NumFields=8 
 } VSAMField_T;
 
 typedef enum {
@@ -38,21 +51,14 @@ typedef struct {
 	size_t argindex[NumFields];
 	size_t offset[NumFields];
 	size_t len[NumFields];
+	int list:1;
 	int get:1;
 	int set:1;
 } Options_T;
 
 typedef _Packed struct {
-	unsigned short sysplexXOffset;
-	unsigned short sysplexXLen;
-	unsigned short systemXOffset;
-	unsigned short systemXLen;
-	unsigned short verXOffset;
-	unsigned short verXLen;
-	unsigned short relXOffset;
-	unsigned short relXLen;
-	unsigned short modXOffset;
-	unsigned short modXLen;
+	unsigned short offset[NumFilterFields];
+	unsigned short len[NumFilterFields];
 } FilterHeader_T;
 
 /*
@@ -63,6 +69,7 @@ typedef _Packed struct {
  */
 typedef _Packed struct {
 	char inactive;
+	char reserved;  
 	char prodID[FIXED_PRODID_SIZE];
 	char key[FIXED_KEY_SIZE];
 	char val[FIXED_VAL_SIZE];
@@ -152,6 +159,10 @@ static int setField(Options_T* opt, char** argv, int i, size_t offset, VSAMField
         return 0;         		
 }
 
+static int hasFilter(Options_T* opt, VSAMField_T field) {
+	return (opt->len[field] > 0);
+}
+
 static int processArgs(int argc, char** argv, Options_T* opt) {
 	int i, rc;
 
@@ -190,8 +201,8 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 					}
 					break;
 				case 'l':
-					fprintf(stderr, "Option %s not implemented yet\n", arg);
-					rc = 4;
+					opt->list = 1;
+					break;
 				default:
 					fprintf(stderr, "Unknown option:%s\n", arg);
 					return(syntax(argv[0]));
@@ -214,6 +225,18 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 				opt->len[KeyField] = len;
 			}
 		}
+	}
+
+	if (!hasFilter(opt, ProdIDField)) {
+		if (hasFilter(opt, VerField) || hasFilter(opt, RelField) || hasFilter(opt, ModField)) {
+			fprintf(stderr, "-V, -R, and -M can only be specified if -P is specified\n");
+			return 8;
+		}
+	}
+
+	if (opt->set && opt->list) {
+		fprintf(stderr, "-l can not be specified when setting a variable\n");
+		return 8;
 	}
 	return 0;
 }
@@ -263,27 +286,74 @@ static int vsamwrite(const char* buff, size_t numbytes, FILE* fp) {
 	return rc;
 }
 
+static FilterHeader_T* getFilterHeader(FixedHeader_T* hdr) {
+	char* buff = ((char*) hdr) + sizeof(FixedHeader_T);
+	FilterHeader_T* filter = (FilterHeader_T*) (&buff[hdr->filterXOffset]);
+	return filter;
+}
+
 static size_t computebufflen(FixedHeader_T* hdr) {
-	size_t len = hdr->filterXLen + hdr->keyXLen + hdr->valXLen;
+	size_t len = hdr->prodIDXLen + hdr->keyXLen + hdr->valXLen + hdr->filterXLen;
+	VSAMField_T f;
 	if (hdr->filterXLen > 0) {
-		FilterHeader_T* f = (FilterHeader_T*) (((char*) hdr) + hdr->filterXOffset);
-		len += (f->sysplexXLen + f->systemXLen + f->verXLen + f->relXLen + f->modXLen);
+		FilterHeader_T* filter = getFilterHeader(hdr);
+		for (f=FirstFilterField; f<=LastFilterField; ++f) {
+			len += filter->len[f];
+		}
 	}
 	return len;
 }
 		
-static int setxfield(FixedHeader_T* hdr, unsigned short* xoffsetp, unsigned short* xlenp, unsigned short xlen, const char* xfield) {
+static int setxfield(FixedHeader_T* hdr, unsigned short* xoffsetp, unsigned short* xlenp, unsigned short xlen, const void* xfield) {
 	char* buff = (char*) hdr;
-	size_t bufflen = computebufflen(hdr);
+	size_t bufflen;
+
 	buff += sizeof(FixedHeader_T);
+	bufflen = computebufflen(hdr);
 	if (bufflen + xlen > MAX_RECLEN) {
 		fprintf(stderr, "Total length of new record would exceed maximum record length. copy failed\n");
 		return 0;
 	}
 	*xoffsetp = bufflen;
 	*xlenp = xlen;
+
 	memcpy(&buff[*xoffsetp], xfield, xlen);
 	return xlen;
+}
+
+static unsigned short* filterOffset(FixedHeader_T* hdr, VSAMField_T field) {
+	FilterHeader_T* fh = getFilterHeader(hdr);
+	return &fh->offset[field];
+}
+
+static unsigned short* filterLen(FixedHeader_T* hdr,VSAMField_T field) {
+	FilterHeader_T* fh = getFilterHeader(hdr);
+	return &fh->len[field];
+}
+
+static int setffield(FixedHeader_T* hdr, const void* xfield, unsigned short xlen, VSAMField_T field) {
+	FilterHeader_T newFilter = { 0 };
+	unsigned short* xoffsetp;
+	unsigned short* xlenp;
+	size_t bufflen;
+	size_t inclen=0;
+
+	bufflen = computebufflen(hdr);
+	if (hdr->filterXLen == 0) {
+		bufflen += sizeof(FilterHeader_T);
+	}
+
+	if (bufflen + xlen > MAX_RECLEN) {
+		fprintf(stderr, "Total length of new record would exceed maximum record length. copy failed\n");
+		return 0;
+	}
+	if (hdr->filterXLen == 0) {
+		inclen += setxfield(hdr, &hdr->filterXOffset, &hdr->filterXLen, sizeof(newFilter), &newFilter);
+	}
+	xoffsetp = filterOffset(hdr, field);
+	xlenp = filterLen(hdr, field);
+	inclen += setxfield(hdr, xoffsetp, xlenp, xlen, xfield);
+	return inclen;
 }
 
 static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMField_T fieldName) {
@@ -315,14 +385,24 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 				return 0;
 			}
                         break;
+		case SysplexField:
+		case SystemField:
+		case VerField:
+		case RelField:
+		case ModField:
+			return setffield(hdr, field, len, fieldName);
+			break;
                 default:
-                        fprintf(stderr, "TBD: Implement setfield of other fields\n");
+                        fprintf(stderr, "Internal error. setfield called with unnexpected field %d\n", field);
 	                exit(16);
         }
 }
 
-static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short xlen, unsigned short userlen, const char* userkey) {
+static int cmpxfield(FixedHeader_T* hdr, Options_T* opt, unsigned short xoffsetp, unsigned short xlen, unsigned short userlen, const char* userkey) {
 	char* buff = (char*) hdr;
+	if (userlen == 0 && opt->list) {
+		return FullMatch;
+	}
 
 	if (xlen != userlen) {
 		return PartialMatch;
@@ -336,7 +416,10 @@ static int cmpxfield(FixedHeader_T* hdr, unsigned short xoffsetp, unsigned short
 	}
 }
 
-static int cmpfield(FixedHeader_T* hdr, const char* vsamfield, const char* userfield, size_t userlen) {
+static int cmpfield(FixedHeader_T* hdr, Options_T* opt, const char* vsamfield, const char* userfield, size_t userlen) {
+	if (userlen == 0 && opt->list) {
+		return FullMatch;
+	}
 	if (!memcmp(vsamfield, userfield, userlen)) {
 		if (hdr->inactive) {
 			return PartialMatch;
@@ -356,12 +439,12 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, Options_T* opt, char** argv, co
 			size_t prodIDLen;
 			size_t cmplen = (len < FIXED_KEY_SIZE) ? len : FIXED_KEY_SIZE-1;
 
-			fieldCheck = cmpfield(hdr, hdr->key, field, cmplen);
+			fieldCheck = cmpfield(hdr, opt, hdr->key, field, cmplen);
 			if (fieldCheck != FullMatch) {
 				return fieldCheck;
 			}
 			if (len >= FIXED_KEY_SIZE) {
-				fieldCheck = cmpxfield(hdr, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
+				fieldCheck = cmpxfield(hdr, opt, hdr->keyXOffset, hdr->keyXLen, len-FIXED_KEY_SIZE+1, &field[FIXED_KEY_SIZE-1]);
 				if (fieldCheck != FullMatch) {
 					return fieldCheck;
 				}
@@ -381,19 +464,19 @@ static KeyMatch_T vsamxmatch(FixedHeader_T* hdr, Options_T* opt, char** argv, co
 			 * continue (i.e. it is a partial match
 			 */
 			if (len >= FIXED_PRODID_SIZE) {
-				fieldCheck = cmpfield(hdr, hdr->prodID, field, FIXED_PRODID_SIZE-1);
+				fieldCheck = cmpfield(hdr, opt, hdr->prodID, field, FIXED_PRODID_SIZE-1);
 				if (fieldCheck == FullMatch) {
-					fieldCheck = cmpxfield(hdr, hdr->prodIDXOffset, hdr->prodIDXLen, len-FIXED_PRODID_SIZE+1, &field[FIXED_PRODID_SIZE-1]);
+					fieldCheck = cmpxfield(hdr, opt, hdr->prodIDXOffset, hdr->prodIDXLen, len-FIXED_PRODID_SIZE+1, &field[FIXED_PRODID_SIZE-1]);
 				}
 			} else {
-				fieldCheck = cmpfield(hdr, hdr->prodID, field, len);
+				fieldCheck = cmpfield(hdr, opt, hdr->prodID, field, len);
 			}
 			if (fieldCheck == NoMatch) {
 				fieldCheck = PartialMatch; 
 			}
 			return fieldCheck;
 		default:
-			fprintf(stderr, "TBD: Implement extended match of other fields\n");
+			fprintf(stderr, "Internal Error: vsamxmatch Unexpected key other than KEY or PRODID passed in:%d\n", fieldName);
 			exit(16);
 	}
 }
@@ -404,6 +487,7 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, char** argv, Options_T* 
 	char* userfield;
 	size_t vsamfieldlen;
 	size_t userlen;
+	size_t fixedlen;
 	int rc;
 	KeyMatch_T result = PartialMatch;
 
@@ -414,14 +498,21 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, char** argv, Options_T* 
 			vsamfield = hdr->key;
 			userfield = &argv[opt->argindex[KeyField]][opt->offset[KeyField]];
 			userlen = opt->len[KeyField];
-			vsamfieldlen = (userlen >= FIXED_KEY_SIZE) ? FIXED_KEY_SIZE-1 : userlen;
-			memcpy(vsamfield, userfield, vsamfieldlen);
+			fixedlen = FIXED_KEY_SIZE;
+			break;
+		case ProdIDField:
+			vsamfield = hdr->prodID;
+			userfield = &argv[opt->argindex[ProdIDField]][opt->offset[ProdIDField]];
+			userlen = opt->len[ProdIDField];
+			fixedlen = FIXED_PRODID_SIZE;
 			break;
 		default:
-			fprintf(stderr, "TBD: Implement extended locate of other fields\n");
+			fprintf(stderr, "Internal Error: vsamxlocate Unexpected key other than KEY or PRODID passed in:%d\n", fieldName);
 			exit(16);
 	}
-	rc = flocate(fp, vsamfield, FIXED_KEY_SIZE-1, __KEY_EQ);
+	vsamfieldlen = (userlen >= fixedlen) ? fixedlen-1 : userlen;
+	memcpy(vsamfield, userfield, vsamfieldlen);
+	rc = flocate(fp, vsamfield, fixedlen-1, __KEY_EQ);
 	if (rc) {
 		return NULL;
 	}
@@ -454,46 +545,97 @@ static int vsamclose(FILE* fp) {
 	return rc;
 }
 
-static int printxfield(const FixedHeader_T* hdr, const char* fixed, size_t fixedlen, size_t offset, size_t xlen) {
+static int printxfield(const FixedHeader_T* hdr, const char* fixed, size_t fixedlen, size_t offset, size_t xlen, const char* sep) {
 	const char* buff = (((const char*) hdr) + sizeof(FixedHeader_T));
 	int rc;
 
 	if (xlen > 0) {	
-		rc = printf("%s%.*s\n", fixed, xlen, &buff[offset]);
+		rc = printf("%s%.*s%s", fixed, xlen, &buff[offset], sep);
 	} else {
-		rc = printf("%s\n", fixed);
+		rc = printf("%s%s", fixed, sep);
 	}
 	return rc;
 }
-		
-static int printfield(FixedHeader_T* hdr, VSAMField_T field) {
+
+static int printffield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
+	const char* buff = (((const char*) hdr) + sizeof(FixedHeader_T));
+	int rc;
+
+	if (hdr->filterXLen == 0) {
+		return printf("%s", sep);
+	} else {
+		unsigned short len = *filterLen(hdr, field);
+		unsigned short offset = *filterOffset(hdr, field);
+		return printf("%.*s%s", len, &buff[offset], sep);
+	}
+}
+	
+static int printfield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
 	int rc;	
 	switch (field) {
-                case ValField:
-			rc = printxfield(hdr, hdr->val, FIXED_VAL_SIZE-1, hdr->valXOffset, hdr->valXLen);
+                case ProdIDField:
+			rc = printxfield(hdr, hdr->prodID, FIXED_PRODID_SIZE-1, hdr->prodIDXOffset, hdr->prodIDXLen, sep);
 	          	break;
                 case KeyField:
-			rc = printxfield(hdr, hdr->key, FIXED_KEY_SIZE-1, hdr->keyXOffset, hdr->keyXLen);
+			rc = printxfield(hdr, hdr->key, FIXED_KEY_SIZE-1, hdr->keyXOffset, hdr->keyXLen, sep);
+	          	break;
+                case ValField:
+			rc = printxfield(hdr, hdr->val, FIXED_VAL_SIZE-1, hdr->valXOffset, hdr->valXLen, sep);
+	          	break;
+		case SysplexField:
+		case SystemField:
+		case VerField:
+		case RelField:
+		case ModField:
+			rc = printffield(hdr, field, sep);
 	          	break;
 		default:
-                        fprintf(stderr, "TBD: Implement print of other fields\n");
+                        fprintf(stderr, "Internal error. Unknown field: %d for printfield\n", field);
 	                exit(16);
         }
 	return rc;
 }
 
+static int printfields(FixedHeader_T* hdr) {
+	int rc;
+	int totrc = 0;
+	VSAMField_T f;
+	for (f=FirstFilterField; f<=LastFilterField; ++f) { 
+		rc = printfield(hdr, f, PRINT_FIELD_SEP);
+		if (rc <= 0) { return rc; }
+		totrc += rc;
+	}
+
+	rc = printfield(hdr, ProdIDField, PRINT_FIELD_SEP);
+	if (rc <= 0) { return rc; }
+	totrc += rc;
+
+	rc = printfield(hdr, KeyField, PRINT_FIELD_SEP);
+	if (rc <= 0) { return rc; }
+	totrc += rc;
+
+	rc = printfield(hdr, ValField, PRINT_NL);
+	if (rc <= 0) { return rc; }
+	totrc += rc;
+
+	return totrc;
+}
+
 static int setRecord(char* buff, size_t *bufflen, char** argv, Options_T* opt) {
-	/*
-	 * MSF - TBD - deal with XSVRM
-	 */
 	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
+	VSAMField_T f;
   
 	memset(fh, 0, sizeof(FixedHeader_T));
+	for (f=FirstFilterField; f<=LastFilterField; ++f) {
+		if (hasFilter(opt, f)) {
+			extlen += setfield(fh, &argv[opt->argindex[f]][opt->offset[f]], opt->len[f], f);
+		}
+	}
 	extlen += setfield(fh, &argv[opt->argindex[KeyField]][opt->offset[KeyField]], opt->len[KeyField], KeyField);
 	extlen += setfield(fh, &argv[opt->argindex[ValField]][opt->offset[ValField]], opt->len[ValField], ValField);
 	extlen += setfield(fh, &argv[opt->argindex[ProdIDField]][opt->offset[ProdIDField]], opt->len[ProdIDField], ProdIDField);
-	
+
 	*bufflen = (sizeof(FixedHeader_T) + extlen);
 
 	return 0;
@@ -514,7 +656,7 @@ static int getKey(char** argv, Options_T* opt) {
 	if (!hdr) {
 		return 4;
 	}
-	rc = printfield(hdr, ValField);
+	rc = printfield(hdr, ValField, PRINT_NL);
 	if (rc <= 0) {
 		return 8;
 	}
@@ -523,6 +665,65 @@ static int getKey(char** argv, Options_T* opt) {
 		return 12;
 	}
 	return 0;
+}
+
+static int listKeyEntries(char** argv, Options_T* opt) {
+	fprintf(stderr, "Not implemented yet - list key entries\n");
+	return 8;
+}
+
+static int listProdIDEntries(char** argv, Options_T* opt) {
+	FILE* fp;
+	int rc;
+	FixedHeader_T* hdr;
+	size_t reclen;
+	char buff[MAX_RECLEN];
+	KeyMatch_T result = FullMatch;
+
+	fp = vsamopen(opt->vsamCluster, PRODID_QUAL, "rb,type=record");
+	if (!fp) {
+		return 16;
+	}
+	hdr = vsamxlocate(fp, buff, argv, opt, ProdIDField, &reclen);
+	while (hdr) {
+		const char* prodID = &argv[opt->argindex[ProdIDField]][opt->offset[ProdIDField]];
+		unsigned short prodIDLen = opt->len[ProdIDField];
+
+		rc = printfields(hdr);
+		if (rc <= 0) {
+			return 8;
+		}
+		do {
+			rc = vsamread(hdr, MAX_RECLEN, fp);
+			if (rc == 0) {
+				if (!feof(fp)) {
+					fprintf(stderr, "Internal Error: Unable to read record after flocate/fread of %s successful\n", prodID);
+				}
+				return 10;
+			}
+			result = vsamxmatch(hdr, opt, argv, prodID, prodIDLen, ProdIDField);
+		} while (result == PartialMatch);
+		if (result == NoMatch) {
+			hdr = NULL;
+		}
+	}
+	rc = vsamclose(fp);
+	if (rc) {
+		return 12;
+	}
+	return 0;
+}
+
+static int listEntries(char** argv, Options_T* opt) {
+	if (hasFilter(opt, ProdIDField)) {
+		if (hasFilter(opt, KeyField)) {
+			return listKeyEntries(argv, opt);
+		} else {
+			return listProdIDEntries(argv, opt);
+		}
+	} else {
+		return listKeyEntries(argv, opt);
+	}
 }
 
 static int setKey(char** argv, Options_T* opt) {
@@ -584,7 +785,9 @@ int main(int argc, char* argv[]) {
 	if (rc=processArgs(argc, argv, &opt)) {
 		return rc;	
 	}
-	if (opt.get) {
+	if (opt.list) {
+		rc=listEntries(argv, &opt);
+	} else if (opt.get) {
 		rc=getKey(argv, &opt);
 	} else if (opt.set) {
 		rc=setKey(argv, &opt);
