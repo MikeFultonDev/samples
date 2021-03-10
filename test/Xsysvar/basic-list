@@ -1,0 +1,93 @@
+#!/bin/sh
+#
+# Test XSysvar by:
+# 1) Create same named key but with different prodid
+# 2) List all entries matching key
+# 3) Create same named prodid but with different keys
+# 4) List all entries matching prodid
+#
+dhlq='ibmuser.getset'
+
+drm -f ${dhlq}
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+#
+# (1)
+#
+key='TestKey'
+value='Value'
+prodids='IGY CEE EQA Longer-Name'
+
+for prodid in ${prodids}; do
+	Xsysvar -D${dhlq} -P${prodid} "${key}=${prodid}${value}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'prodid variant set': -P${prodid} ${key}=${value}. RC:${rc}" >&2
+		exit 8
+	fi
+	out=`Xsysvar -D${dhlq} -P${prodid} "${key}"`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'prodid variant get': -P${prodid} ${key}. RC:${rc}" >&2
+		exit 8
+	fi
+	if [ "${out}" != "${prodid}${value}" ]; then
+		echo "Failed on 'prodid variant get': -P${prodid} ${key}. Expected <${prodid}${value}> but got <${out}>" >&2
+		exit 8
+	fi
+done
+
+Xsysvar -D${dhlq} -l "${key}" 2>/dev/null
+rc=$?
+if [ $rc -eq 0 ]; then
+	echo "Expected 'unimplemented' for list of key: -l ${key}" >&2
+	exit 8
+fi
+
+#
+# (2)
+#
+value='1'
+prodid='Oak Lumber'
+keys='Length Width Depth'
+sysplex='Toronto'
+system='B37A'
+ver=2
+rel=1
+mod=17
+for key in ${keys}; do
+	Xsysvar -D${dhlq} "-P${prodid}" "-X${sysplex}" "-S${system}" "-V${ver}" "-R${rel}" "-M${mod}" "${key}=${key}-${value}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'prodid variant set': -P${prodid} ${key}=${value}. RC:${rc}" >&2
+		exit 8
+	fi
+	out=`Xsysvar -D${dhlq} "-P${prodid}" "${key}"`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Failed on 'prodid variant get': -P${prodid} ${key}. RC:${rc}" >&2
+		exit 8
+	fi
+	if [ "${out}" != "${key}-${value}" ]; then
+		echo "Failed on 'prodid variant get': -P${prodid} ${key}. Expected <${key}-${value}> but got <${out}>" >&2
+		exit 8
+	fi
+done
+
+out=`Xsysvar -D${dhlq} -l "-P${prodid}"`
+expected='Toronto	B37A	2	1	17	Oak Lumber	Length	Length-1
+Toronto	B37A	2	1	17	Oak Lumber	Width	Width-1
+Toronto	B37A	2	1	17	Oak Lumber	Depth	Depth-1'
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Failed on list of prodid: -l ${prodid}. RC: ${rc}" >&2
+	exit 8
+fi
+if [ "${out}" != "${expected}" ]; then
+	echo "Failed on 'prodid list': -P${prodid} -l. Expected <${expected}> but got <${out}>" >&2
+	exit 8
+fi

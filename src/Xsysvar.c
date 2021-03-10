@@ -211,9 +211,13 @@ static int processArgs(int argc, char** argv, Options_T* opt) {
 		} else {	
 			char* eqp;
 			int len = strlen(arg);
+			if (opt->set || opt->get) {
+				fprintf(stderr, "Can only specify one key to get or set. %s should not be specified\n", arg);
+				return 8;
+			}
+			eqp = strchr(arg, '=');
 			opt->argindex[KeyField] = i;
 			opt->offset[KeyField] = 0;
-			eqp = strchr(arg, '=');
 			if (eqp) {
 				opt->set = 1;
 				opt->argindex[ValField] = i;
@@ -699,9 +703,10 @@ static int listProdIDEntries(char** argv, Options_T* opt) {
 				if (!feof(fp)) {
 					fprintf(stderr, "Internal Error: Unable to read record after flocate/fread of %s successful\n", prodID);
 				}
-				return 10;
+				result = NoMatch;
+			} else {
+				result = vsamxmatch(hdr, opt, argv, prodID, prodIDLen, ProdIDField);
 			}
-			result = vsamxmatch(hdr, opt, argv, prodID, prodIDLen, ProdIDField);
 		} while (result == PartialMatch);
 		if (result == NoMatch) {
 			hdr = NULL;
