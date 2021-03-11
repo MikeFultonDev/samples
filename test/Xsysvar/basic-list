@@ -6,7 +6,8 @@
 # 3) Create same named prodid but with different keys
 # 4) List all entries matching prodid
 #
-dhlq='ibmuser.getset'
+set -x
+dhlq='ibmuser.list'
 
 drm -f ${dhlq}
 crtvsamxsysvar ${dhlq}
