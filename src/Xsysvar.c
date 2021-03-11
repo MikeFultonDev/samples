@@ -743,27 +743,35 @@ static int getKey(const char** argv, Options_T* opt) {
 	return 0;
 }
 
-static int listKeyEntries(const char** argv, Options_T* opt) {
-	fprintf(stderr, "Not implemented yet - list key entries\n");
-	return 8;
-}
-
-static int listProdIDEntries(const char** argv, Options_T* opt) {
+static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfield) {
 	FILE* fp;
 	int rc;
 	FixedHeader_T* hdr;
 	size_t reclen;
 	char buff[MAX_RECLEN];
 	KeyMatch_T result = FullMatch;
+	const char* qual;
 
-	fp = vsamopen(opt->vsamCluster, PRODID_QUAL, "rb,type=record");
+	switch (keyfield) {
+		case ProdIDField: 
+			qual=PRODID_QUAL;
+			break;
+		case KeyField: 
+			qual=KEY_QUAL;
+			break;
+		default:
+                        fprintf(stderr, "Internal error. Unknown field: %d for printfield\n", keyfield);
+	                exit(16);
+	}
+
+	fp = vsamopen(opt->vsamCluster, qual, "rb,type=record");
 	if (!fp) {
 		return 16;
 	}
-	hdr = vsamxlocate(fp, buff, argv, opt, ProdIDField, &reclen);
+	hdr = vsamxlocate(fp, buff, argv, opt, keyfield, &reclen);
 	while (hdr) {
-		const char* prodID = optstr(argv, opt, ProdIDField);
-		unsigned short prodIDLen = optlen(opt, ProdIDField);
+		const char* key = optstr(argv, opt, keyfield);
+		unsigned short keyLen = optlen(opt, keyfield);
 
 		rc = printfields(hdr);
 		if (rc <= 0) {
@@ -773,11 +781,11 @@ static int listProdIDEntries(const char** argv, Options_T* opt) {
 			rc = vsamread(hdr, MAX_RECLEN, fp);
 			if (rc == 0) {
 				if (!feof(fp)) {
-					fprintf(stderr, "Internal Error: Unable to read record after flocate/fread of %s successful\n", prodID);
+					fprintf(stderr, "Internal Error: Unable to read record after flocate/fread of %s successful\n", key);
 				}
 				result = NoMatch;
 			} else {
-				result = vsamkeymatch(hdr, opt, argv, prodID, prodIDLen, ProdIDField);
+				result = vsamkeymatch(hdr, opt, argv, key, keyLen, keyfield);
 			}
 		} while (result == PartialMatch);
 		if (result == NoMatch) {
@@ -794,12 +802,12 @@ static int listProdIDEntries(const char** argv, Options_T* opt) {
 static int listEntries(const char** argv, Options_T* opt) {
 	if (hasFilter(opt, ProdIDField)) {
 		if (hasFilter(opt, KeyField)) {
-			return listKeyEntries(argv, opt);
+			return listEntriesByKey(argv, opt, KeyField);
 		} else {
-			return listProdIDEntries(argv, opt);
+			return listEntriesByKey(argv, opt, ProdIDField);
 		}
 	} else {
-		return listKeyEntries(argv, opt);
+		return listEntriesByKey(argv, opt, KeyField);
 	}
 }
 

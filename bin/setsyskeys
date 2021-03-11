@@ -1,0 +1,9 @@
+#!/bin/sh
+
+list='CEE:CEE CSS:SYS1 EZA:TCIPI ISP:ISP CBC:CBC ASM:HLA IGY:IGY630 IBM:IEL530 DFH:DFH550'
+for entry in ${list}; do
+	hlq=${entry#*:}
+	prodID=${entry%:*}
+	Xsysvar -P${prodID} HLQ=${hlq}
+done
+Xsysvar -l HLQ

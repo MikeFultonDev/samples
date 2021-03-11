@@ -41,10 +41,18 @@ for prodid in ${prodids}; do
 	fi
 done
 
-Xsysvar -D${dhlq} -l "${key}" 2>/dev/null
+expected='					IGY	TestKey	IGYValue
+					CEE	TestKey	CEEValue
+					EQA	TestKey	EQAValue
+					Longer-Name	TestKey	Longer-NameValue'
+out=`Xsysvar -D${dhlq} "${key}" -l`
 rc=$?
-if [ $rc -eq 0 ]; then
-	echo "Expected 'unimplemented' for list of key: -l ${key}" >&2
+if [ $rc -gt 0 ]; then
+	echo "Failed on 'general key variant list': -l ${key}. RC:${rc}" >&2
+	exit 8
+fi
+if [ "${out}" != "${expected}" ]; then
+	echo "Failed on 'key list': ${key} -l. Expected <${expected}> but got <${out}>" >&2
 	exit 8
 fi
 
