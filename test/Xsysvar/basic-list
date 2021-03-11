@@ -6,7 +6,6 @@
 # 3) Create same named prodid but with different keys
 # 4) List all entries matching prodid
 #
-set -x
 dhlq='ibmuser.list'
 
 drm -f ${dhlq}
@@ -67,7 +66,7 @@ for key in ${keys}; do
 		echo "Failed on 'prodid variant set': -P${prodid} ${key}=${value}. RC:${rc}" >&2
 		exit 8
 	fi
-	out=`Xsysvar -D${dhlq} "-P${prodid}" "${key}"`
+	out=`Xsysvar -D${dhlq} "-P${prodid}" "-X${sysplex}" "-S${system}" "-V${ver}" "-R${rel}" "-M${mod}" "${key}"`
 	rc=$?
 	if [ $rc -gt 0 ]; then
 		echo "Failed on 'prodid variant get': -P${prodid} ${key}. RC:${rc}" >&2
