@@ -29,15 +29,16 @@ typedef enum {
 	VerField=2,
 	RelField=3,
 	ModField=4,
+	CommentField=5,
 
-	KeyField=5,
-	ValField=6,
-	ProdIDField=7,
+	KeyField=6,
+	ValField=7,
+	ProdIDField=8,
 
 	FirstFilterField=0,
-	LastFilterField=4,
-	NumFilterFields=5,
-	NumFields=8 
+	LastFilterField=5,
+	NumFilterFields=6,
+	NumFields=9 
 } VSAMField_T;
 
 typedef enum {
@@ -84,27 +85,26 @@ typedef _Packed struct {
 } FixedHeader_T;
 
 static int syntax(const char* prog) {
-	fprintf(stderr, "%s [-?hlXSPVRMD] <key>[=<val>]\n", prog);
+	fprintf(stderr, "%s [-?hlCXSPVRMD] <key>[=<val>]\n", prog);
 	fprintf(stderr, "Where:\n");
 	fprintf(stderr, " -?|-h: show this help\n");
-	fprintf(stderr, " -X*: variable has GLOBAL scope [default for set]\n");
-	fprintf(stderr, " -X<sysplex>: variable is for SYSPLEX <sysplex> only\n");
-	fprintf(stderr, " -S*: variable has SYSPLEX (all systems in this SYSPLEX) scope [default for set]\n");
-	fprintf(stderr, " -S<system>: variable is for system <system> only\n");
-	fprintf(stderr, " -P*: variable scope is for all products [default for get and set]\n");
-	fprintf(stderr, " -P<prod>: variable is for product prefix <prod> only\n");
-	fprintf(stderr, " -V*: variable scope is not version specific [default for get and set]\n");
-	fprintf(stderr, " -V<ver>: variable scope is for version <ver> of product prefix <prod> only. Requires -P to be specified\n");
-	fprintf(stderr, " -R*: variable scope is not release specific [default for get and set]\n");
-	fprintf(stderr, " -R<rel>: variable scope is for release <rel> of product prefix <prod> only. Requires -P to be specified\n");
-	fprintf(stderr, " -M*: variable scope is not modification specific [default for get and set]\n");
-	fprintf(stderr, " -M<mod>: variable scope is for modification <mod> of product prefix <prod> only. Requires -P to be specified\n");
-	fprintf(stderr, " -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
-	fprintf(stderr, " -l: Display (in order, separated by spaces, all matches, one per line) <sysplex> <system> <prod> <ver> <rel> <mod> <val>\n");
-	fprintf(stderr, "     [default is to just display the value]\n");
+	fprintf(stderr, " Filters can be specified for set/get/list\n");
+	fprintf(stderr, "  -X<sysplex>: Sysplex <sysplex> specific\n");
+	fprintf(stderr, "  -S<system>: System <system> specific\n");
+	fprintf(stderr, "  -P<prod>: Product <prod> specific\n");
+	fprintf(stderr, "  -V<ver>: Version <ver> of product <prod> specific. Requires -P to be specified\n");
+	fprintf(stderr, "  -R<rel>: Release <rel> of product <prod> specific. Requires -P to be specified\n");
+	fprintf(stderr, "  -M<mod>: Modification <mod> of product <prod> specific. Requires -P to be specified\n");
+	fprintf(stderr, " Listing multiple keys by filter:\n");
+	fprintf(stderr, "  -l: list the filters, key, and value that match the filter request\n");
+	fprintf(stderr, "      the list is by either key or <prod>, e.g. -l -P<prod> or -l <key>\n");
+	fprintf(stderr, "      additional filters can be specified to restrict the listing\n");
+ 	fprintf(stderr, "      Each line is of the format:<sysplex>\t<system>\t<prod>\t<ver>\t<rel>\t<mod>\t<val>\t<comment>\n");
+	fprintf(stderr, " Other options:\n");
+	fprintf(stderr, "  -C<comment>: Comment <comment> specified\n");
+	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
 	fprintf(stderr, "Note:\n");
-	fprintf(stderr, " The key, value, sysplex, system, version, release, modification values can be up to 255 characters in length\n");
-	fprintf(stderr, " The product prefix must be 3 characters in length or *\n");
+	fprintf(stderr, " The combined length of the key, value, and filters must be less than 32K bytes\n");
 	fprintf(stderr, "Examples:\n");
 	fprintf(stderr, " Set key/value pair for JAVA_HOME globally\n");
 	fprintf(stderr, "  %s JAVA_HOME=/usr/lpp/java/current_64\n", prog);
@@ -118,16 +118,23 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "  %s -PIGY -V6 -R2 -M0 CSI=SMPE.IGY620.CSI\n", prog);
 	fprintf(stderr, " Set key/value pair for CSI associated with product prefix ZOS, Version 2, Release 4, Modification 0\n");
 	fprintf(stderr, "  %s -PZOS -V2 -R2 -M0 CSI=SMPE.ZOS240.CSI\n", prog);
+	fprintf(stderr, " Set key/value pair for HLQ associated with product prefix IGY\n");
+	fprintf(stderr, "  %s -PIGY '-CActive COBOL compiler HLQ' HLQ=IGY630\n", prog);
 	fprintf(stderr, " Assuming the previous commands have been issued\n");
 	fprintf(stderr, " Get key/value pair for JAVA_HOME from SYSPLEX plex, SYSTEM S0W2\n");
 	fprintf(stderr, "  %s JAVA_HOME <-- returns /usr/lpp/java/current_64\n", prog);
 	fprintf(stderr, " Get key/value pair for JAVA_HOME from SYSPLEX plex, SYSTEM S0W1\n");
-	fprintf(stderr, "  %s JAVA_HOME <-- returns /usr/local/devline_64\n", prog);
+	fprintf(stderr, "  %s -Xplex -SS0W1 JAVA_HOME <-- returns /usr/local/devline_64\n", prog);
 	fprintf(stderr, " Get key/value pairs for all CSIs\n");
 	fprintf(stderr, "  %s -l CSI <-- returns\n", prog);
-	fprintf(stderr, "   * * IGY 6 3 0 CSI SMPE.IGY630.CSI\n");
-	fprintf(stderr, "   * * IGY 6 2 0 CSI SMPE.IGY620.CSI\n");
-	fprintf(stderr, "   * * ZOS 2 4 0 CSI SMPE.ZOS240.CSI\n");
+	fprintf(stderr, "   \t\tIGY\t6\t3\t0\tCSI\tSMPE.IGY630.CSI\t\n");
+	fprintf(stderr, "   \t\tIGY\t6\t2\t0\tCSI\tSMPE.IGY620.CSI\t\n");
+	fprintf(stderr, "   \t\tZOS\t2\t2\t0\tCSI\tSMPE.ZOS240.CSI\t\n");
+	fprintf(stderr, " Get key/value pairs for product IGY\n");
+	fprintf(stderr, "  %s -l -PIGY <-- returns\n", prog);
+	fprintf(stderr, "   \t\tIGY\t6\t3\t0\tCSI\tSMPE.IGY630.CSI\t\n");
+	fprintf(stderr, "   \t\tIGY\t6\t2\t0\tCSI\tSMPE.IGY620.CSI\t\n");
+	fprintf(stderr, "   \t\tIGY\t\t\t\tHLQ\tIGY630\tActive COBOL compiler HLQ\n");
 
 	return 1;
 }
@@ -183,6 +190,9 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 				case 'h':
 				case '?':
 					rc = syntax(argv[0]);
+					break;
+				case 'C':
+					rc = setField(opt, argv, i, 2, CommentField);
 					break;
 				case 'X':
 					rc = setField(opt, argv, i, 2, SysplexField);
@@ -400,6 +410,7 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 				return 0;
 			}
                         break;
+		case CommentField:
 		case SysplexField:
 		case SystemField:
 		case VerField:
@@ -548,6 +559,7 @@ static KeyMatch_T vsamkeymatch(FixedHeader_T* hdr, Options_T* opt, const char** 
 
 	if (hdr->filterXLen > 0) {
 		for (f=FirstFilterField; f<=LastFilterField; ++f) {
+			if (f == CommentField) continue;   
 			fieldCheck = cmpfilterfield(hdr, opt, optstr(argv, opt, f), optlen(opt,f), f);
 			if (fieldCheck != FullMatch) {
 				return fieldCheck;
@@ -658,6 +670,7 @@ static int printfield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
                 case ValField:
 			rc = printxfield(hdr, hdr->val, FIXED_VAL_SIZE-1, hdr->valXOffset, hdr->valXLen, sep);
 	          	break;
+		case CommentField:
 		case SysplexField:
 		case SystemField:
 		case VerField:
@@ -677,6 +690,7 @@ static int printfields(FixedHeader_T* hdr) {
 	int totrc = 0;
 	VSAMField_T f;
 	for (f=FirstFilterField; f<=LastFilterField; ++f) { 
+		if (f == CommentField) continue; 
 		rc = printfield(hdr, f, PRINT_FIELD_SEP);
 		if (rc <= 0) { return rc; }
 		totrc += rc;
@@ -690,7 +704,11 @@ static int printfields(FixedHeader_T* hdr) {
 	if (rc <= 0) { return rc; }
 	totrc += rc;
 
-	rc = printfield(hdr, ValField, PRINT_NL);
+	rc = printfield(hdr, ValField, PRINT_FIELD_SEP);
+	if (rc <= 0) { return rc; }
+	totrc += rc;
+
+	rc = printfield(hdr, CommentField, PRINT_NL);
 	if (rc <= 0) { return rc; }
 	totrc += rc;
 

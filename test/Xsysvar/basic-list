@@ -41,10 +41,10 @@ for prodid in ${prodids}; do
 	fi
 done
 
-expected='					IGY	TestKey	IGYValue
-					CEE	TestKey	CEEValue
-					EQA	TestKey	EQAValue
-					Longer-Name	TestKey	Longer-NameValue'
+expected='					IGY	TestKey	IGYValue	
+					CEE	TestKey	CEEValue	
+					EQA	TestKey	EQAValue	
+					Longer-Name	TestKey	Longer-NameValue	'
 out=`Xsysvar -D${dhlq} "${key}" -l`
 rc=$?
 if [ $rc -gt 0 ]; then
@@ -87,9 +87,9 @@ for key in ${keys}; do
 done
 
 out=`Xsysvar -D${dhlq} -l "-P${prodid}"`
-expected='Toronto	B37A	2	1	17	Oak Lumber	Length	Length-1
-Toronto	B37A	2	1	17	Oak Lumber	Width	Width-1
-Toronto	B37A	2	1	17	Oak Lumber	Depth	Depth-1'
+expected='Toronto	B37A	2	1	17	Oak Lumber	Length	Length-1	
+Toronto	B37A	2	1	17	Oak Lumber	Width	Width-1	
+Toronto	B37A	2	1	17	Oak Lumber	Depth	Depth-1	'
 rc=$?
 if [ $rc -gt 0 ]; then
 	echo "Failed on list of prodid: -l ${prodid}. RC: ${rc}" >&2

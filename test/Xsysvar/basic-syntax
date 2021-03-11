@@ -1,0 +1,79 @@
+#!/bin/sh
+#
+# Test XSysvar syntax examples all work:
+# Set key/value pair for JAVA_HOME globally
+#  Xsysvar JAVA_HOME=/usr/lpp/java/current_64
+# Set key/value pair for JAVA_HOME for SYSPLEX plex, SYSTEM S0W1
+#  Xsysvar -Xplex -SS0W1 JAVA_HOME=/usr/local/devline_64
+# Set key/value pair for JAVA64_HOME associated with product-prefix AJV, Version 8, Release 0
+#  Xsysvar -PAVJ -V8 -R0 JAVA64_HOME=/usr/lpp/java/J8.0_64
+# Set key/value pair for CSI associated with product prefix IGY, Version 6, Release 3, Modification 0
+#  Xsysvar -PIGY -V6 -R3 -M0 CSI=SMPE.IGY630.CSI
+# Set key/value pair for CSI associated with product prefix IGY, Version 6, Release 2, Modification 0
+#  Xsysvar -PIGY -V6 -R2 -M0 CSI=SMPE.IGY620.CSI
+# Set key/value pair for CSI associated with product prefix ZOS, Version 2, Release 4, Modification 0
+#  Xsysvar -PZOS -V2 -R2 -M0 CSI=SMPE.ZOS240.CSI
+# Set key/value pair for HLQ associated with product prefix IGY
+#  Xsysvar -PIGY '-CActive COBOL compiler HLQ' HLQ=IGY630
+# Assuming the previous commands have been issued
+# Get key/value pair for JAVA_HOME from SYSPLEX plex, SYSTEM S0W2
+#  Xsysvar JAVA_HOME <-- returns /usr/lpp/java/current_64
+# Get key/value pair for JAVA_HOME from SYSPLEX plex, SYSTEM S0W1
+#  Xsysvar -Xplex -SS0W1 JAVA_HOME <-- returns /usr/local/devline_64
+# Get key/value pairs for all CSIs
+#  Xsysvar -l CSI <-- returns
+#   		IGY	6	3	0	CSI	SMPE.IGY630.CSI	
+#   		IGY	6	2	0	CSI	SMPE.IGY620.CSI	
+#   		ZOS	2	2	0	CSI	SMPE.ZOS240.CSI	
+# Get key/value pairs for product IGY
+#  Xsysvar -l -PIGY <-- returns
+#   		IGY	6	3	0	CSI	SMPE.IGY630.CSI	
+#   		IGY	6	2	0	CSI	SMPE.IGY620.CSI	
+#   		IGY				HLQ	IGY630	Active COBOL compiler HLQ
+
+dhlq='ibmuser.syntax'
+drm -f ${dhlq}
+
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+rclist=""
+
+Xsysvar JAVA_HOME=/usr/lpp/java/current_64
+rclist="${rclist} $?"
+Xsysvar -Xplex -SS0W1 JAVA_HOME=/usr/local/devline_64
+rclist="${rclist} $?"
+Xsysvar -PAVJ -V8 -R0 JAVA64_HOME=/usr/lpp/java/J8.0_64
+rclist="${rclist} $?"
+Xsysvar -PIGY -V6 -R3 -M0 CSI=SMPE.IGY630.CSI
+rclist="${rclist} $?"
+Xsysvar -PIGY -V6 -R2 -M0 CSI=SMPE.IGY620.CSI
+rclist="${rclist} $?"
+Xsysvar -PZOS -V2 -R2 -M0 CSI=SMPE.ZOS240.CSI
+rclist="${rclist} $?"
+Xsysvar -PIGY '-CActive COBOL compiler HLQ' HLQ=IGY630
+rclist="${rclist} $?"
+
+out=`Xsysvar JAVA_HOME`
+rclist="${rclist} $?"
+
+out=`Xsysvar -Xplex -SS0W1 JAVA_HOME`
+rclist="${rclist} $?"
+
+out=`Xsysvar -l CSI`
+rclist="${rclist} $?"
+
+out=`Xsysvar -l -PIGY`
+rclist="${rclist} $?"
+
+test=1
+for rc in ${rclist}; do
+	if [ "${rc}" != "0" ]; then
+		echo "Test ${test} did not generate a zero RC. RC:${rc}" >&2
+		exit 16
+	fi
+	test=$((test+1))
+done
