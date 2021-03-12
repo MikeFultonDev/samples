@@ -1,3 +1,12 @@
+/*********************************************************************
+ * Copyright (c) 2021 IBM
+ *
+ * This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License 2.0
+ * which is available at https://www.eclipse.org/legal/epl-2.0/
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ **********************************************************************/
 #pragma langlvl(extended)
 #define _OPEN_SYS_UNLOCKED_EXT 1
 #include <stdio.h>
