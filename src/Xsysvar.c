@@ -7,6 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
+
 #pragma langlvl(extended)
 #define _OPEN_SYS_UNLOCKED_EXT 1
 #include <stdio.h>

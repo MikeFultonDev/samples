@@ -1,4 +1,5 @@
 #!/bin/sh
+
 if [ $# -lt 1 ]; then
 	echo "Syntax: $0 <db-hlq>\n" >&2
 	echo "  where <db-hlq> is the name of the VSAM Sphere to create for Xsysvar\n" >&2
