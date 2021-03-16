@@ -8,6 +8,8 @@
 # 5) Check that dataset name less than 54 but too long when suffix added generates error
 # 6) Check that dataset name that does not exist generates error
 # 7) verify that -V, -R, -M can't be specified if -P isn't specified
+# 8) Check that set and delete together generate error
+# 9) Check that delete and list together generate error
 
 function XsysvarStderr {
 	set +x
@@ -107,6 +109,19 @@ for f in ${filter}; do
 		exit 16
 	fi
 done
+
+msg='You can not set and delete a variable at the same time'
+out=`XsysvarStderr 1 -d -D${dhlq} Key=Set`
+if [ "${out}" != "${msg}" ]; then
+	echo "Check for delete/set did not print right message. Got: ${out} and Expected: ${msg}" >&2
+	exit 16
+fi
+msg='-l can not be specified when deleting a variable'
+out=`XsysvarStderr 1 -l -d -D${dhlq} Key`
+if [ "${out}" != "${msg}" ]; then
+	echo "Check for delete/list did not print right message. Got: ${out} and Expected: ${msg}" >&2
+	exit 16
+fi
 
 #
 # Check that error codes are non-zero

@@ -63,6 +63,7 @@ typedef struct {
 	size_t offset[NumFields];
 	size_t len[NumFields];
 	int list:1;
+	int delete:1;
 	int get:1;
 	int set:1;
 } Options_T;
@@ -95,7 +96,7 @@ typedef _Packed struct {
 } FixedHeader_T;
 
 static int syntax(const char* prog) {
-	fprintf(stderr, "%s [-?hlCXSPVRMD] <key>[=<val>]\n", prog);
+	fprintf(stderr, "%s [-?hldCXSPVRMD] <key>[=<val>]\n", prog);
 	fprintf(stderr, "Where:\n");
 	fprintf(stderr, " -?|-h: show this help\n");
 	fprintf(stderr, " Filters can be specified for set/get/list\n");
@@ -113,6 +114,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, " Other options:\n");
 	fprintf(stderr, "  -C<comment>: Comment <comment> specified\n");
 	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
+	fprintf(stderr, "  -d: Delete key (with optional fields)\n");
 	fprintf(stderr, "Note:\n");
 	fprintf(stderr, " The combined length of the key, value, and filters must be less than 32K bytes\n");
 	fprintf(stderr, "Examples:\n");
@@ -231,6 +233,9 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 				case 'l':
 					opt->list = 1;
 					break;
+				case 'd':
+					opt->delete = 1;
+					break;
 				default:
 					fprintf(stderr, "Unknown option:%s\n", arg);
 					return(syntax(argv[0]));
@@ -268,6 +273,14 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 
 	if (opt->set && opt->list) {
 		fprintf(stderr, "-l can not be specified when setting a variable\n");
+		return 8;
+	}
+	if (opt->delete && opt->list) {
+		fprintf(stderr, "-l can not be specified when deleting a variable\n");
+		return 8;
+	}
+	if (opt->set && opt->delete) {
+		fprintf(stderr, "You can not set and delete a variable at the same time\n");
 		return 8;
 	}
 	return 0;
@@ -504,14 +517,27 @@ static KeyMatch_T cmpkeyfield(FixedHeader_T* hdr, Options_T* opt, const char* op
 }
 
 static KeyMatch_T cmpfilterfield(FixedHeader_T* hdr, Options_T* opt, const char* userfield, size_t userlen, VSAMField_T field) {
-	unsigned short len = *filterLen(hdr, field);
-	unsigned short offset = *filterOffset(hdr, field);
-	char* buff = getBuffer(hdr);
-	char* vsamfield = &buff[offset];
+	unsigned short len;
+	unsigned short offset;
+	char* buff;
+	char* vsamfield;
 
         if (userlen == 0 && opt->list) {
 	        return FullMatch;
-	}               
+	}          
+	if (hdr->filterXLen == 0) {
+		if (userlen != 0) {
+			return PartialMatch; 
+		} else {
+			return FullMatch;
+		}
+	}
+
+	len = *filterLen(hdr, field);
+	offset = *filterOffset(hdr, field);
+	buff = getBuffer(hdr);
+	vsamfield = &buff[offset];
+
 	if (userlen != len) {
 		return PartialMatch;
 	}
@@ -567,13 +593,11 @@ static KeyMatch_T vsamkeymatch(FixedHeader_T* hdr, Options_T* opt, const char** 
 			exit(16);
 	}
 
-	if (hdr->filterXLen > 0) {
-		for (f=FirstFilterField; f<=LastFilterField; ++f) {
-			if (f == CommentField) continue;   
-			fieldCheck = cmpfilterfield(hdr, opt, optstr(argv, opt, f), optlen(opt,f), f);
-			if (fieldCheck != FullMatch) {
-				return fieldCheck;
-			}
+	for (f=FirstFilterField; f<=LastFilterField; ++f) {
+		if (f == CommentField) continue;   
+		fieldCheck = cmpfilterfield(hdr, opt, optstr(argv, opt, f), optlen(opt,f), f);
+		if (fieldCheck != FullMatch) {
+			return fieldCheck;
 		}
 	}
 	return fieldCheck;
@@ -758,10 +782,41 @@ static int getKey(const char** argv, Options_T* opt) {
 	}
 	hdr = vsamxlocate(vsamfp, buff, argv, opt, KeyField, &reclen);
 	if (!hdr) {
-		return 4;
+		return 1;
 	}
 	rc = printfield(hdr, ValField, PRINT_NL);
 	if (rc <= 0) {
+		return 8;
+	}
+	rc = vsamclose(vsamfp);
+	if (rc) {
+		return 12;
+	}
+	return 0;
+}
+
+static int invalidateRecord(FILE* fp) {
+	char invalidrecord[1] = { 1 };
+	return fupdate(invalidrecord, sizeof(invalidrecord), fp);
+}
+
+static int deleteKey(const char** argv, Options_T* opt) {
+	FILE* vsamfp;
+	int rc;
+	FixedHeader_T* hdr;
+	size_t reclen;
+	char buff[MAX_RECLEN];
+
+	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
+	if (!vsamfp) {
+		return 16;
+	}
+	hdr = vsamxlocate(vsamfp, buff, argv, opt, KeyField, &reclen);
+	if (!hdr) {
+		return 1;
+	}
+	rc = invalidateRecord(vsamfp);
+	if (!rc) {
 		return 8;
 	}
 	rc = vsamclose(vsamfp);
@@ -847,7 +902,6 @@ static int setKey(const char** argv, Options_T* opt) {
 	int rc;
 	FixedHeader_T* hdr;
 	char buff[MAX_RECLEN];
-	char invalidrecord[1] = { 1 };
 
 	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamkfp) {
@@ -864,10 +918,16 @@ static int setKey(const char** argv, Options_T* opt) {
 			if (newreclen < currreclen) {
 				memset(&buff[newreclen], 0, currreclen-newreclen);
 			}
-			fupdate(buff, currreclen, vsamkfp);
+			rc = fupdate(buff, currreclen, vsamkfp);
+			if (!rc) {
+				return 6;
+			}
 			return 0;
 		} else {
-			fupdate(invalidrecord, sizeof(invalidrecord), vsamkfp);
+			rc = invalidateRecord(vsamkfp);
+			if (!rc) {
+				return 7;
+			}
 		}
 	}
 	rc = vsamclose(vsamkfp);
@@ -900,6 +960,8 @@ int main(int argc, const char** argv) {
 	}
 	if (opt.list) {
 		rc=listEntries(argv, &opt);
+	} else if (opt.delete) {
+		rc=deleteKey(argv, &opt);
 	} else if (opt.get) {
 		rc=getKey(argv, &opt);
 	} else if (opt.set) {

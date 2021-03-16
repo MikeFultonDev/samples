@@ -1,0 +1,90 @@
+#!/bin/sh
+#
+# Test XSysvar by:
+# 1) Add sysvar
+# 2) Delete sysvar and make sure rc of 0
+# a) List it to make sure it isn't there
+# b) Delete again and make sure rc is 1
+# 3/4/5) Add sysvar with some filters
+# 6/7/8) Make sure different sysvars can be deleted independently
+# c) List sysvar set and ensure all were deleted
+#
+# (lettered tests have a non-zero rc and are not in the check at the end of RC's)
+#
+dhlq='ibmuser.delete'
+
+drm -f ${dhlq}
+crtvsamxsysvar ${dhlq}
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+rclist=""
+#1
+out=`Xsysvar AVerySpecialVariable=True`
+rclist="${rclist} $?"
+
+#2
+out=`Xsysvar -d AVerySpecialVariable`
+rclist="${rclist} $?"
+
+#a
+out=`Xsysvar AVerySpecialVariable`
+rc=$?
+if [ $rc -ne 1 ]; then
+	echo "Listing a variable that does not exist should give an rc of 1. RC $rc received." >&2
+	exit 8
+fi
+
+#b
+out=`Xsysvar -d AVerySpecialVariable`
+rc=$?
+if [ $rc -ne 1 ]; then
+	echo "Deleting a variable that does not exist should give an rc of 1. RC $rc received." >&2
+	exit 8
+fi
+
+#3
+out=`Xsysvar -PColor Red=FF0000`
+rclist="${rclist} $?"
+
+#4
+out=`Xsysvar -PFaces Red=Angry`
+rclist="${rclist} $?"
+
+#5
+out=`Xsysvar -SSystem Red=Hot`
+rclist="${rclist} $?"
+
+#6
+out=`Xsysvar -d -SSystem Red`
+rclist="${rclist} $?"
+
+#7
+out=`Xsysvar -PColor -d Red`
+rclist="${rclist} $?"
+
+#8
+out=`Xsysvar -PFaces -d Red`
+rclist="${rclist} $?"
+
+#c
+out=`Xsysvar Red`
+rc=$?
+if [ $rc -ne 1 ]; then
+	echo "Listing a variable that does not exist should give an rc of 1. RC $rc received." >&2
+	exit 8
+fi
+
+#
+# Check that error codes are non-zero
+# 
+test=1
+for rc in ${rclist}; do
+        if [ "${rc}" != "0" ]; then
+                echo "Test ${test} did not generate a non-zero RC. RC:${rc}" >&2
+                exit 16
+	fi
+	test=$((test+1))
+done
