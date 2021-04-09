@@ -1,0 +1,6 @@
+#!/bin/sh
+#
+# Very simple script to build sysinfo
+#
+xlc -qasm -qlist -I/usr/include/zos -o../bin/sysinfo sysinfo.c
+exit $?
