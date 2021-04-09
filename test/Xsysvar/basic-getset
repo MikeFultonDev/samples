@@ -6,9 +6,9 @@
 # 3) create the sysvar with value of length 0 to 15, one after another, verifying it can be read correctly
 # 4) verify 2 records exist - initial 'dummy' record and one fixed value record
 
-# 5) create the sysvar with value of length 16, and verify it can be read correctly and there are now 3 records
-# 6) create the sysvar with value of length 32, and verify it can be read correctly and now there are 4 records
-# 7) create the sysvar with length 0 to 32 and verify there are still 4 records
+# 5) create the sysvar with value of length 16, and verify it can be read correctly and there are now 2 records
+# 6) create the sysvar with value of length 32, and verify it can be read correctly and now there are 2 records
+# 7) create the sysvar with length 0 to 32 and verify there are still 2 records
 #
 # 8) create a set of sysvar names with key of length 1 to 32 with values of length 0 to 31
 
@@ -85,8 +85,8 @@ if [ "${out}" != "${value}" ]; then
 fi
 
 records=`vsamrepro ${dhlq} /dev/null | grep IDC0005I | awk ' { print $7; }'`
-if [ ${records} -ne 3 ]; then
-	echo "Expected 3 records after long 'sets' but there were ${records}" >&2
+if [ ${records} -ne 2 ]; then
+	echo "Expected 2 records after long 'sets' but there were ${records}" >&2
 	exit 8
 fi
 
@@ -112,8 +112,8 @@ if [ "${out}" != "${value}" ]; then
 fi
 
 records=`vsamrepro ${dhlq} /dev/null | grep IDC0005I | awk ' { print $7; }'`
-if [ ${records} -ne 4 ]; then
-	echo "Expected 4 records after longer 'set' but there were ${records}" >&2
+if [ ${records} -ne 2 ]; then
+	echo "Expected 2 records after longer 'set' but there were ${records}" >&2
 	exit 8
 fi
 
@@ -143,8 +143,8 @@ while [ ${#value} -lt 33 ]; do
 done
 
 records=`vsamrepro ${dhlq} /dev/null | grep IDC0005I | awk ' { print $7; }'`
-if [ ${records} -ne 4 ]; then
-	echo "Expected 4 records after short/medium/long/longer 'sets' but there were ${records}" >&2
+if [ ${records} -ne 2 ]; then
+	echo "Expected 2 records after short/medium/long/longer 'sets' but there were ${records}" >&2
 	exit 8
 fi
 

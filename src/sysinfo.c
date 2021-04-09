@@ -86,9 +86,6 @@ struct ihaipa* ipa() {
 	struct ecvt* ecvt = (cvt->cvtecvt);
 	struct ihaipa* ipa = (ecvt->ecvtipa);
 
-printf("CVT Eye Catcher: %4.4s\n", cvt->cvtcvt);
-printf("ECVT Eye Catcher: %4.4s\n", ecvt->ecvtecvt);
-printf("IPA Eye Catcher: %4.4s\n", ipa->ipaid);
 	return ipa;
 }
 

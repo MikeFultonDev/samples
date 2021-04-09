@@ -8,7 +8,10 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
-#pragma langlvl(extended)
+#include "//'SYS1.SAMPLIB(CSRSIC)'"
+#include <cvt.h>
+#include <ihaecvt.h>
+#include <stdio.h>
 #define _OPEN_SYS_UNLOCKED_EXT 1
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +32,19 @@
 
 const static char DEFAULT_VSAM_CLUSTER[] = "SYS1.XSYSVAR";
 
+struct ihaipa {
+	char ipaid[4];
+	char _1[28];
+	char ipalpnam[8];
+	char _2[312];
+	char ipasxnam[8];
+};
+
+struct psa { 
+	char _1[16];
+	struct cvtmap* cvt;
+};
+
 /*
  * NOTE: This enum ordering can not be changed without changing the
  * corresponding FilterHeader_T and FixedHeader_T structures
@@ -41,14 +57,15 @@ typedef enum {
 	ModField=4,
 	CommentField=5,
 
-	KeyField=6,
-	ValField=7,
-	ProdIDField=8,
+	KSDSKeyField=6,
+	KeyField=7,
+	ValField=8,
+	ProdIDField=9,
 
 	FirstFilterField=0,
 	LastFilterField=5,
 	NumFilterFields=6,
-	NumFields=9 
+	NumFields=10 
 } VSAMField_T;
 
 typedef enum {
@@ -73,6 +90,16 @@ typedef _Packed struct {
 	unsigned short len[NumFilterFields];
 } FilterHeader_T;
 
+
+typedef _Packed struct {
+	char manufacturer[16];
+	char type[4];
+	char model[16];
+	char plant[4]; 
+	char sequence[16];
+	char time[32];
+} KSDSKey_T;
+
 /*
  * NOTE: The following structure layout CAN NOT be changed without also 
  *       re-generating the VSAM Sphere as well as updating the code for
@@ -80,8 +107,7 @@ typedef _Packed struct {
  *       The last byte of the fixed character fields is always 0x00.
  */
 typedef _Packed struct {
-	char inactive;
-	char reserved;  
+	KSDSKey_T ksdskey;
 	char prodID[FIXED_PRODID_SIZE];
 	char key[FIXED_KEY_SIZE];
 	char val[FIXED_VAL_SIZE];
@@ -406,6 +432,10 @@ static int setffield(FixedHeader_T* hdr, const void* xfield, unsigned short xlen
 
 static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMField_T fieldName) {
         switch (fieldName) {
+		case KSDSKeyField:
+			memcpy(&hdr->ksdskey, field, len);
+			return 0;
+                        break;
 		case KeyField:
 			if (len >= FIXED_KEY_SIZE) {
 				memcpy(hdr->key, field, FIXED_KEY_SIZE-1);
@@ -469,11 +499,7 @@ static int cmpfixedfield(FixedHeader_T* hdr, Options_T* opt, const char* vsamfie
 		return FullMatch;
 	}
 	if (!memcmp(vsamfield, userfield, userlen) && (vsamfield[userlen] == '\0')) {
-		if (hdr->inactive) {
-			return PartialMatch;
-		} else {
-			return FullMatch;
-		}
+		return FullMatch;
 	} else {
 		return NoMatch;
 	}
@@ -749,10 +775,96 @@ static int printfields(FixedHeader_T* hdr) {
 	return totrc;
 }
 
+static char* reverse(char* time) {
+	int i;
+	for (i=0; i<8; ++i) {
+		char tmp = time[i];
+		time[i] = time[15-i];
+		time[15-i] = tmp;    
+	}
+	return time;
+}
+
+static char nibble2x(unsigned char in) {
+	return (in < 10 ? '0' + in : 'A' + (in-10));
+}
+
+static char* fmttime(const char* time, char* buffer) {
+	int i;
+	int o=0;
+	for (i=0; i<16; ++i) {
+		unsigned char nibble;
+		nibble = ((unsigned char) time[i]) >> 4;
+		buffer[o++] = nibble2x(nibble);
+		nibble = ((unsigned char) time[i]) & 0xF;
+		buffer[o++] = nibble2x(nibble);
+	}
+	return buffer;
+}
+
+int ksdskey(KSDSKey_T* key) {
+	CSRSIRequest     req;
+	CSRSIInfoAreaLen len;
+	CSRSIReturnCode  rc;
+	siv1             v1cpc_machine;
+	char             hextime[32+1];
+	char             time[16];
+	char*            ptime;
+
+	unsigned char*   manufacturer;
+	unsigned char*   type;
+	unsigned char*   model;
+	unsigned char*   plant;
+	unsigned char*   sequence;
+ 
+	req = CSRSI_REQUEST_V1CPC_MACHINE;
+	len = sizeof(siv1);
+	csrsi_byaddr(req, len, &v1cpc_machine, &rc);
+	manufacturer = v1cpc_machine.siv1si11v1.si11v1cpcmanufacturer;
+	type = v1cpc_machine.siv1si11v1.si11v1cpctype;
+	model = v1cpc_machine.siv1si11v1.si11v1cpcmodel;
+	plant = v1cpc_machine.siv1si11v1.si11v1cpcplantofmanufacture;
+	sequence = v1cpc_machine.siv1si11v1.si11v1cpcsequencecode;
+
+	ptime = time;
+
+	__asm(" STCKE %0" : "=m"(*ptime) : : );
+
+	reverse(time);
+	fmttime(time, hextime);
+
+	memcpy(key->manufacturer, manufacturer, sizeof(key->manufacturer));
+	memcpy(key->type, type, sizeof(key->type));
+	memcpy(key->model, model, sizeof(key->model));
+	memcpy(key->plant, plant, sizeof(key->plant));
+	memcpy(key->sequence, sequence, sizeof(key->sequence));
+	memcpy(key->time, hextime, sizeof(key->time));
+
+	return 0;
+}
+
+struct ihaipa* ipa() {
+	struct psa* psa = 0;
+	struct cvtmap* cvt = psa->cvt;
+	struct ecvt* ecvt = (cvt->cvtecvt);
+	struct ihaipa* ipa = (ecvt->ecvtipa);
+
+	return ipa;
+}
+
+const char* sysplex() {
+	return ipa()->ipasxnam;
+}	
+
+const char* lpar() {
+	return ipa()->ipalpnam;
+}
+
 static int setRecord(char* buff, size_t *reclen, const char** argv, Options_T* opt) {
 	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
 	VSAMField_T f;
+	KSDSKey_T primarykey;
   
 	memset(fh, 0, sizeof(FixedHeader_T));
 	for (f=FirstFilterField; f<=LastFilterField; ++f) {
@@ -760,6 +872,8 @@ static int setRecord(char* buff, size_t *reclen, const char** argv, Options_T* o
 			extlen += setfield(fh, optstr(argv, opt, f), optlen(opt, f), f);
 		}
 	}
+	ksdskey(&primarykey);
+	extlen += setfield(fh, (const char*) &primarykey, sizeof(KSDSKey_T), KSDSKeyField);
 	extlen += setfield(fh, optstr(argv, opt, KeyField), optlen(opt,KeyField), KeyField);
 	extlen += setfield(fh, optstr(argv, opt, ValField), optlen(opt,ValField), ValField);
 	extlen += setfield(fh, optstr(argv, opt, ProdIDField), optlen(opt,ProdIDField), ProdIDField);
@@ -795,33 +909,29 @@ static int getKey(const char** argv, Options_T* opt) {
 	return 0;
 }
 
-static int invalidateRecord(FILE* fp) {
-	char invalidrecord[1] = { 1 };
-	return fupdate(invalidrecord, sizeof(invalidrecord), fp);
-}
-
 static int deleteKey(const char** argv, Options_T* opt) {
-	FILE* vsamfp;
+	FILE* vsamkfp;
+	FILE* vsamcfp;
 	int rc;
 	FixedHeader_T* hdr;
 	size_t reclen;
 	char buff[MAX_RECLEN];
 
-	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
-	if (!vsamfp) {
+	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
+	if (!vsamkfp) {
 		return 16;
 	}
-	hdr = vsamxlocate(vsamfp, buff, argv, opt, KeyField, &reclen);
+	hdr = vsamxlocate(vsamkfp, buff, argv, opt, KeyField, &reclen);
 	if (!hdr) {
 		return 1;
 	}
-	rc = invalidateRecord(vsamfp);
-	if (!rc) {
+	rc = fdelrec(vsamkfp);
+	if (rc) {
 		return 8;
 	}
-	rc = vsamclose(vsamfp);
+	rc = vsamclose(vsamkfp);
 	if (rc) {
-		return 12;
+		return 10;
 	}
 	return 0;
 }
@@ -914,20 +1024,9 @@ static int setKey(const char** argv, Options_T* opt) {
 		return 12;
 	}
 	if (hdr) {
-		if (newreclen <= currreclen) {
-			if (newreclen < currreclen) {
-				memset(&buff[newreclen], 0, currreclen-newreclen);
-			}
-			rc = fupdate(buff, currreclen, vsamkfp);
-			if (!rc) {
-				return 6;
-			}
-			return 0;
-		} else {
-			rc = invalidateRecord(vsamkfp);
-			if (!rc) {
-				return 7;
-			}
+		rc = fdelrec(vsamkfp);
+		if (rc) {
+			return 8;
 		}
 	}
 	rc = vsamclose(vsamkfp);

@@ -102,12 +102,12 @@ zz
 		return $rc
 	fi	
 
-	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout --in="${repro}" --out="${cluster}"` <<zz
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout --in="${repro},lrecl=${fixedRecord}" --out="${cluster}"` <<zz
   REPRO INFILE(IN) OUTFILE(OUT)
 zz
 	rc=$?
 	if [ ${rc} -gt 0 ]; then
-		echo "VSAM REPRO failed" >&2
+		echo "VSAM REPRO from ${repro} to ${cluster} failed" >&2
 		echo "${out}" >&2
 		return $rc
 	fi	
@@ -243,6 +243,7 @@ for key in ${allkeys}; do
 		return 8
 	fi
 	if ${first} ; then
+		first=false
 		w=`echo ${keyInfo} | wc -w` 
 		if [ $w -eq 4 ]; then
 			primaryKeyInfo="${keyInfo}"
