@@ -22,15 +22,15 @@ fi
 
 rclist=""
 #1
-out=`Xsysvar AVerySpecialVariable=True`
+out=`Xsysvar -D${dhlq} AVerySpecialVariable=True`
 rclist="${rclist} $?"
 
 #2
-out=`Xsysvar -d AVerySpecialVariable`
+out=`Xsysvar -D${dhlq} -d AVerySpecialVariable`
 rclist="${rclist} $?"
 
 #a
-out=`Xsysvar AVerySpecialVariable`
+out=`Xsysvar -D${dhlq} AVerySpecialVariable`
 rc=$?
 if [ $rc -ne 1 ]; then
 	echo "Listing a variable that does not exist should give an rc of 1. RC $rc received." >&2
@@ -38,7 +38,7 @@ if [ $rc -ne 1 ]; then
 fi
 
 #b
-out=`Xsysvar -d AVerySpecialVariable`
+out=`Xsysvar -D${dhlq} -d AVerySpecialVariable`
 rc=$?
 if [ $rc -ne 1 ]; then
 	echo "Deleting a variable that does not exist should give an rc of 1. RC $rc received." >&2
@@ -46,31 +46,31 @@ if [ $rc -ne 1 ]; then
 fi
 
 #3
-out=`Xsysvar -PColor Red=FF0000`
+out=`Xsysvar -D${dhlq} -PColor Red=FF0000`
 rclist="${rclist} $?"
 
 #4
-out=`Xsysvar -PFaces Red=Angry`
+out=`Xsysvar -D${dhlq} -PFaces Red=Angry`
 rclist="${rclist} $?"
 
 #5
-out=`Xsysvar -SSystem Red=Hot`
+out=`Xsysvar -D${dhlq} -SSystem Red=Hot`
 rclist="${rclist} $?"
 
 #6
-out=`Xsysvar -d -SSystem Red`
+out=`Xsysvar -D${dhlq} -d -SSystem Red`
 rclist="${rclist} $?"
 
 #7
-out=`Xsysvar -PColor -d Red`
+out=`Xsysvar -D${dhlq} -PColor -d Red`
 rclist="${rclist} $?"
 
 #8
-out=`Xsysvar -PFaces -d Red`
+out=`Xsysvar -D${dhlq} -PFaces -d Red`
 rclist="${rclist} $?"
 
 #c
-out=`Xsysvar Red`
+out=`Xsysvar -D${dhlq} Red`
 rc=$?
 if [ $rc -ne 1 ]; then
 	echo "Listing a variable that does not exist should give an rc of 1. RC $rc received." >&2
