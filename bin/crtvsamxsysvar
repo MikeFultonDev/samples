@@ -8,5 +8,5 @@ fi
 hlq="$1"
 repro=/tmp/$$.vsam 
 dd if=/dev/zero bs=1 count=63 2>/dev/null >"${repro}"
-crtvsam "${hlq}" "${repro}" prodid:4:2 key:16:6
+crtvsam "${hlq}" "${repro}" time: prodid:4:2 key:16:6
 rm ${repro}
