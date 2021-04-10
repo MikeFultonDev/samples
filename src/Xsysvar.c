@@ -326,7 +326,7 @@ static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
 	fp=fopen(mvsname, fmt);
 	if (!fp) {
 		saveerrno=errno;
-		fprintf(stderr, "Unable to open VSAM dataset %s for read\n", mvsname);
+		fprintf(stderr, "Unable to open VSAM dataset %s mode %s\n", mvsname, fmt);
 		errno=saveerrno;
 		perror(mvsname);
 	}
