@@ -1,0 +1,24 @@
+#!/bin/sh
+
+if [ $# -lt 1 ]; then
+	echo "Syntax: $0 <db-hlq>\n" >&2
+	echo "  where <db-hlq> is the name of the VSAM Sphere to fill for Xsysvar\n" >&2
+	exit 4
+fi
+hlq="$1"
+
+count=0 
+date 
+while [ true ]; do
+	count=$((count+1))
+	if [ $count -gt 100000 ]; then 
+  		break;
+	fi
+	Xsysvar -D${hlq} BigColor${count}=${count}; 
+	if [ $? -gt 0 ]; then 
+		echo "Failed after $count iterations" >&2
+		echo "with BigColor${count}=${count}"
+		break;
+	fi
+done 
+date

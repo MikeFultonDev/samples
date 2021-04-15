@@ -42,31 +42,31 @@ fi
 
 rclist=""
 
-Xsysvar JAVA_HOME=/usr/lpp/java/current_64
+Xsysvar -D${dhlq} JAVA_HOME=/usr/lpp/java/current_64
 rclist="${rclist} $?"
-Xsysvar -Xplex -SS0W1 JAVA_HOME=/usr/local/devline_64
+Xsysvar -D${dhlq} -Xplex -SS0W1 JAVA_HOME=/usr/local/devline_64
 rclist="${rclist} $?"
-Xsysvar -PAVJ -V8 -R0 JAVA64_HOME=/usr/lpp/java/J8.0_64
+Xsysvar -D${dhlq} -PAVJ -V8 -R0 JAVA64_HOME=/usr/lpp/java/J8.0_64
 rclist="${rclist} $?"
-Xsysvar -PIGY -V6 -R3 -M0 CSI=SMPE.IGY630.CSI
+Xsysvar -D${dhlq} -PIGY -V6 -R3 -M0 CSI=SMPE.IGY630.CSI
 rclist="${rclist} $?"
-Xsysvar -PIGY -V6 -R2 -M0 CSI=SMPE.IGY620.CSI
+Xsysvar -D${dhlq} -PIGY -V6 -R2 -M0 CSI=SMPE.IGY620.CSI
 rclist="${rclist} $?"
-Xsysvar -PZOS -V2 -R2 -M0 CSI=SMPE.ZOS240.CSI
+Xsysvar -D${dhlq} -PZOS -V2 -R2 -M0 CSI=SMPE.ZOS240.CSI
 rclist="${rclist} $?"
-Xsysvar -PIGY '-CActive COBOL compiler HLQ' HLQ=IGY630
-rclist="${rclist} $?"
-
-out=`Xsysvar JAVA_HOME`
+Xsysvar -D${dhlq} -PIGY '-CActive COBOL compiler HLQ' HLQ=IGY630
 rclist="${rclist} $?"
 
-out=`Xsysvar -Xplex -SS0W1 JAVA_HOME`
+out=`Xsysvar -D${dhlq} JAVA_HOME`
 rclist="${rclist} $?"
 
-out=`Xsysvar -l CSI`
+out=`Xsysvar -D${dhlq} -Xplex -SS0W1 JAVA_HOME`
 rclist="${rclist} $?"
 
-out=`Xsysvar -l -PIGY`
+out=`Xsysvar -D${dhlq} -l CSI`
+rclist="${rclist} $?"
+
+out=`Xsysvar -D${dhlq} -l -PIGY`
 rclist="${rclist} $?"
 
 test=1

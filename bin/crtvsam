@@ -9,6 +9,23 @@
 # * SPDX-License-Identifier: EPL-2.0
 # **********************************************************************
 
+function Syntax {
+	echo "Syntax: crtvsam [-v] <cluster> <repro> [<key>]*" >&2
+	echo "Where: " >&2
+	echo "-v: print out verbose messages" >&2
+	echo "" >&2
+	echo "<cluster> is the name of the VSAM cluster to create" >&2
+	echo "<repro> is the name of the file to perform the initial load from" >&2
+	echo "<key> is of the form: <name>:<length>:<offset>[U]" >&2
+	echo "  <name>: the name of the key" >&2
+	echo "  <length>: the length of the key" >&2
+	echo "  <offset>: the offset of the key" >&2
+	echo "  U: indicates that the key is unique" >&2
+	echo "Note:" >&2
+	echo "  If the first key specified is unique, a KSDS will be created, otherwise an ESDS will be created" >&2
+	exit 4
+}
+
 function isnum {
 	string=$1
 	case $string in
@@ -86,7 +103,7 @@ function crtVSAM {
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   DEFINE CLUSTER ( -
     NAME(${cluster}) -
-    MEGABYTES(1,10) -
+    MEGABYTES(10,50) -
     ${type} -
     RECSZ(${fixedRecord} 32761) -
   ) -
@@ -96,20 +113,26 @@ function crtVSAM {
   ${index}
 zz
 	rc=$?
-	if [ ${rc} -gt 0 ]; then
+	if [ ${rc} -gt 0 ] ; then
 		echo "VSAM creation failed" >&2
 		echo "${out}" >&2
 		return $rc
+	fi
+	if ${verbose}; then
+		echo "${out}"
 	fi	
 
-	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout --in="${repro}" --out="${cluster}"` <<zz
+	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout --in="${repro},lrecl=${fixedRecord}" --out="${cluster}"` <<zz
   REPRO INFILE(IN) OUTFILE(OUT)
 zz
 	rc=$?
 	if [ ${rc} -gt 0 ]; then
-		echo "VSAM REPRO failed" >&2
+		echo "VSAM REPRO from ${repro} to ${cluster} failed" >&2
 		echo "${out}" >&2
 		return $rc
+	fi	
+	if ${verbose}; then
+		echo "${out}"
 	fi	
 	return 0
 }
@@ -138,7 +161,7 @@ function crtAltIndex {
   DEFINE AIX ( -
     NAME(${cluster}.${keyName}) -
     RELATE(${cluster}) -
-    KILOBYTES(10,100) -
+    MEGABYTES(2,10) -
     KEYS(${keyLen} ${keyOffset}) -
     ${keyType} -
     UPGRADE -
@@ -156,6 +179,9 @@ zz
 		echo "${out}" >&2
 		return $rc
 	fi
+	if ${verbose}; then
+		echo "${out}"
+	fi	
 
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   DEFINE PATH ( -
@@ -170,6 +196,9 @@ zz
 		echo "${out}" >&2
 		return $rc
 	fi
+	if ${verbose}; then
+		echo "${out}"
+	fi	
 
 	out=`mvscmdauth --pgm=IDCAMS --sysin=stdin --sysprint=stdout` <<zz
   BLDINDEX  -
@@ -182,6 +211,9 @@ zz
 		echo "${out}" >&2
 		return $rc
 	fi
+	if ${verbose}; then
+		echo "${out}"
+	fi	
 
 	return 0
 }
@@ -204,20 +236,25 @@ function adjustFixedRecord {
 #
 # Mainline
 #
+verbose=false
+while getopts ":v" opt; do
+        case ${opt} in
+	        v )
+	                verbose=true
+	                ;;
+	        \?)
+	                if [ ${OPTARG} != "?" ]; then
+	                        echo "Unknown Option: ${OPTARG}" >&2
+	                fi
+	                Syntax
+	                exit 4
+	                ;;
+	esac
+done
+shift $(expr $OPTIND - 1 )
 
 if [ $# -lt 2 ]; then
-	echo "Syntax: $0 <cluster> <repro> [<key>]*" >&2
-	echo "Where: " >&2
-	echo "<cluster> is the name of the VSAM cluster to create" >&2
-	echo "<repro> is the name of the file to perform the initial load from" >&2
-	echo "<key> is of the form: <name>:<length>:<offset>[U]" >&2
-	echo "  <name>: the name of the key" >&2
-	echo "  <length>: the length of the key" >&2
-	echo "  <offset>: the offset of the key" >&2
-	echo "  U: indicates that the key is unique" >&2
-	echo "Note:" >&2
-	echo "  If the first key specified is unique, a KSDS will be created, otherwise an ESDS will be created" >&2
-	exit 4
+	Syntax
 fi
 
 cluster=$(echo "$1" | tr '[:lower:]' '[:upper:]');
@@ -243,6 +280,7 @@ for key in ${allkeys}; do
 		return 8
 	fi
 	if ${first} ; then
+		first=false
 		w=`echo ${keyInfo} | wc -w` 
 		if [ $w -eq 4 ]; then
 			primaryKeyInfo="${keyInfo}"

@@ -29,7 +29,7 @@ done
 aixes=`echo "${cout}" | awk '/AIX-/ { print substr($1,10); }'`
 for aix in ${aixes}; do
 	aout=`mvscmdauth --pgm=idcams --sysprint=* --sysin=stdin` <<zz
-  LISTCAT AIX ENTRIES(${aix}) ALL
+  LISTCAT ENTRIES(${aix}) ALL
 zz
 	rc=$?
 	echo "${aout}"
