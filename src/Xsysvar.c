@@ -20,12 +20,10 @@
 
 #define MAX_DSNAME_LEN (44)
 #define MAX_RECLEN (32761)
-#define FIXED_PRODID_SIZE (4)
 #define FIXED_KEY_SIZE (16)
 #define FIXED_VAL_SIZE (16)
 #define CLUSTER_QUAL ""
 #define KEY_QUAL ".KEY.PATH"
-#define PRODID_QUAL ".PRODID.PATH"
 
 #define PRINT_FIELD_SEP "\t"
 #define PRINT_NL  "\n"
@@ -52,19 +50,19 @@ struct psa {
 typedef enum {
 	SysplexField=0,
 	SystemField=1,
-	VerField=2,
-	RelField=3,
-	ModField=4,
-	CommentField=5,
+	ProdIDField=2,
+	VerField=3,
+	RelField=4,
+	ModField=5,
+	CommentField=6,
 
-	KSDSKeyField=6,
-	KeyField=7,
-	ValField=8,
-	ProdIDField=9,
+	KSDSKeyField=7,
+	KeyField=8,
+	ValField=9,
 
 	FirstFilterField=0,
-	LastFilterField=5,
-	NumFilterFields=6,
+	LastFilterField=6,
+	NumFilterFields=7,
 	NumFields=10 
 } VSAMField_T;
 
@@ -108,11 +106,8 @@ typedef _Packed struct {
  */
 typedef _Packed struct {
 	KSDSKey_T ksdskey;
-	char prodID[FIXED_PRODID_SIZE];
 	char key[FIXED_KEY_SIZE];
 	char val[FIXED_VAL_SIZE];
-	unsigned short prodIDXOffset;
-	unsigned short prodIDXLen;
 	unsigned short keyXOffset;
 	unsigned short keyXLen;
 	unsigned short valXOffset;
@@ -134,7 +129,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "  -M<mod>: Modification <mod> of product <prod> specific. Requires -P to be specified\n");
 	fprintf(stderr, " Listing multiple keys by filter:\n");
 	fprintf(stderr, "  -l: list the filters, key, and value that match the filter request\n");
-	fprintf(stderr, "      the list is by either key or <prod>, e.g. -l -P<prod> or -l <key>\n");
+	fprintf(stderr, "      the list is by key, e.g. -l <key>\n");
 	fprintf(stderr, "      additional filters can be specified to restrict the listing\n");
  	fprintf(stderr, "      Each line is of the format:<sysplex>\t<system>\t<prod>\t<ver>\t<rel>\t<mod>\t<val>\t<comment>\n");
 	fprintf(stderr, " Other options:\n");
@@ -168,11 +163,6 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "   \t\tIGY\t6\t3\t0\tCSI\tSMPE.IGY630.CSI\t\n");
 	fprintf(stderr, "   \t\tIGY\t6\t2\t0\tCSI\tSMPE.IGY620.CSI\t\n");
 	fprintf(stderr, "   \t\tZOS\t2\t2\t0\tCSI\tSMPE.ZOS240.CSI\t\n");
-	fprintf(stderr, " Get key/value pairs for product IGY\n");
-	fprintf(stderr, "  %s -l -PIGY <-- returns\n", prog);
-	fprintf(stderr, "   \t\tIGY\t6\t3\t0\tCSI\tSMPE.IGY630.CSI\t\n");
-	fprintf(stderr, "   \t\tIGY\t6\t2\t0\tCSI\tSMPE.IGY620.CSI\t\n");
-	fprintf(stderr, "   \t\tIGY\t\t\t\tHLQ\tIGY630\tActive COBOL compiler HLQ\n");
 
 	return 1;
 }
@@ -349,15 +339,27 @@ static int vsamwrite(const char* buff, size_t numbytes, FILE* fp) {
 	int saveerrno;
 	int rc=fwrite(buff, 1, numbytes, fp);
 	if (rc != numbytes) {
+		__amrc_type save_amrc = *__amrc;
+		unsigned int* rplfdbwd = (unsigned int*) save_amrc.__rplfdbwd;
 		saveerrno=errno;
-		fprintf(stderr, "Unable to write to VSAM dataset\n");
+		fprintf(stderr, "last fwrite errno=%d rplfdbwd=%X, lastop=%d syscode=%X rc=%d\n",
+			   errno,
+			   *rplfdbwd,
+			   save_amrc.__last_op,
+			   save_amrc.__code.__abend.__syscode,
+			   save_amrc.__code.__abend.__rc);
+		fprintf(stderr, "Unable to write to VSAM dataset. Expected to write %d bytes but wrote %d bytes\n", numbytes, rc);
 		errno=saveerrno;
 		perror("fwrite");
 	}
 	return rc;
 }
 
-static char* getBuffer(hdr) {
+static int hasKey(FixedHeader_T* hdr) {
+ 	return hdr->key[0] != '\0';
+}
+
+static char* getBuffer(const FixedHeader_T* hdr) {
 	return ((char*) hdr) + sizeof(FixedHeader_T);
 }
 
@@ -368,7 +370,7 @@ static FilterHeader_T* getFilterHeader(FixedHeader_T* hdr) {
 }
 
 static size_t computebufflen(FixedHeader_T* hdr) {
-	size_t len = hdr->prodIDXLen + hdr->keyXLen + hdr->valXLen + hdr->filterXLen;
+	size_t len = hdr->keyXLen + hdr->valXLen + hdr->filterXLen;
 	VSAMField_T f;
 	if (hdr->filterXLen > 0) {
 		FilterHeader_T* filter = getFilterHeader(hdr);
@@ -454,18 +456,10 @@ static size_t setfield(FixedHeader_T* hdr, const char* field, size_t len, VSAMFi
 				return 0;
 			}
                         break;
-		case ProdIDField:
-			if (len >= FIXED_PRODID_SIZE) {
-				memcpy(hdr->prodID, field, FIXED_PRODID_SIZE-1);
-				return setxfield(hdr, &hdr->prodIDXOffset, &hdr->prodIDXLen, len-FIXED_PRODID_SIZE+1, &field[FIXED_PRODID_SIZE-1]);
-			} else {
-				memcpy(hdr->prodID, field, len);
-				return 0;
-			}
-                        break;
 		case CommentField:
 		case SysplexField:
 		case SystemField:
+		case ProdIDField:
 		case VerField:
 		case RelField:
 		case ModField:
@@ -520,12 +514,6 @@ static KeyMatch_T cmpkeyfield(FixedHeader_T* hdr, Options_T* opt, const char* op
 			xOffset = hdr->keyXOffset;
 			xLen = hdr->keyXLen;
 			break;
-		case ProdIDField:
-			fixedField = hdr->prodID;
-			fixedLen = FIXED_PRODID_SIZE;
-			xOffset = hdr->prodIDXOffset;
-			xLen = hdr->prodIDXLen;
-			break;
 		default:
 			fprintf(stderr, "Internal Error: cmpkeyfield Unexpected key passed in:%d\n", keyName);
 			exit(16);
@@ -575,11 +563,10 @@ static KeyMatch_T cmpfilterfield(FixedHeader_T* hdr, Options_T* opt, const char*
 }
 
 /*
- * Check the passed in optStr/optLen against the VSAM key (either KeyField or ProdIDField)
+ * Check the passed in optStr/optLen against the VSAM key (KeyField)
  * If there is no match, or a partial match, then return the result (a partial match will cause another record to be read)
  * If there is a full match, check the filters. 
- *   - For a key, this is prodid and then the extended filters
- *   - For a prodid, this is key and then the extended filters
+ *   - For a key, this is the extended filters
  * If a filter doesn't match, map it to a partial match so that additional records will be read
  */
 static KeyMatch_T vsamkeymatch(FixedHeader_T* hdr, Options_T* opt, const char** argv, const char* optStr, size_t optLen, VSAMField_T fieldName) {
@@ -591,29 +578,11 @@ static KeyMatch_T vsamkeymatch(FixedHeader_T* hdr, Options_T* opt, const char** 
 			if (fieldCheck != FullMatch) {
 				return fieldCheck;
 			}
-			fieldCheck = cmpkeyfield(hdr, opt, optstr(argv, opt, ProdIDField), optlen(opt,ProdIDField), ProdIDField);
-			if (fieldCheck == NoMatch) {
-				fieldCheck = PartialMatch; 
-			}
 			if (fieldCheck != FullMatch) {
 				return fieldCheck;
 			}
 			break;
 
-		case ProdIDField:
-			fieldCheck = cmpkeyfield(hdr, opt, optStr, optLen, ProdIDField);
-			if (fieldCheck != FullMatch) {
-				return fieldCheck;
-			}
-			fieldCheck = cmpkeyfield(hdr, opt, optstr(argv, opt, KeyField), optlen(opt,KeyField), KeyField);
-			if (fieldCheck == NoMatch) {
-				fieldCheck = PartialMatch; 
-			}
-			if (fieldCheck != FullMatch) {
-				return fieldCheck;
-			}
-			break;
-	
 		default:
 			fprintf(stderr, "Internal Error: vsamkeymatch Unexpected field passed in:%d\n", fieldName);
 			exit(16);
@@ -648,14 +617,8 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, const char** argv, Optio
 			userlen = optlen(opt,KeyField);
 			fixedlen = FIXED_KEY_SIZE;
 			break;
-		case ProdIDField:
-			vsamfield = hdr->prodID;
-			userfield = optstr(argv, opt, ProdIDField);
-			userlen = optlen(opt, ProdIDField);
-			fixedlen = FIXED_PRODID_SIZE;
-			break;
 		default:
-			fprintf(stderr, "Internal Error: vsamxlocate Unexpected key other than KEY or PRODID passed in:%d\n", fieldName);
+			fprintf(stderr, "Internal Error: vsamxlocate Unexpected key other than KEY passed in:%d\n", fieldName);
 			exit(16);
 	}
 	vsamfieldlen = (userlen >= fixedlen) ? fixedlen-1 : userlen;
@@ -721,9 +684,6 @@ static int printffield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
 static int printfield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
 	int rc;	
 	switch (field) {
-                case ProdIDField:
-			rc = printxfield(hdr, hdr->prodID, FIXED_PRODID_SIZE-1, hdr->prodIDXOffset, hdr->prodIDXLen, sep);
-	          	break;
                 case KeyField:
 			rc = printxfield(hdr, hdr->key, FIXED_KEY_SIZE-1, hdr->keyXOffset, hdr->keyXLen, sep);
 	          	break;
@@ -733,6 +693,7 @@ static int printfield(FixedHeader_T* hdr, VSAMField_T field, const char* sep) {
 		case CommentField:
 		case SysplexField:
 		case SystemField:
+		case ProdIDField:
 		case VerField:
 		case RelField:
 		case ModField:
@@ -749,16 +710,13 @@ static int printfields(FixedHeader_T* hdr) {
 	int rc;
 	int totrc = 0;
 	VSAMField_T f;
+
 	for (f=FirstFilterField; f<=LastFilterField; ++f) { 
 		if (f == CommentField) continue; 
 		rc = printfield(hdr, f, PRINT_FIELD_SEP);
 		if (rc <= 0) { return rc; }
 		totrc += rc;
 	}
-
-	rc = printfield(hdr, ProdIDField, PRINT_FIELD_SEP);
-	if (rc <= 0) { return rc; }
-	totrc += rc;
 
 	rc = printfield(hdr, KeyField, PRINT_FIELD_SEP);
 	if (rc <= 0) { return rc; }
@@ -876,7 +834,6 @@ static int setRecord(char* buff, size_t *reclen, const char** argv, Options_T* o
 	extlen += setfield(fh, (const char*) &primarykey, sizeof(KSDSKey_T), KSDSKeyField);
 	extlen += setfield(fh, optstr(argv, opt, KeyField), optlen(opt,KeyField), KeyField);
 	extlen += setfield(fh, optstr(argv, opt, ValField), optlen(opt,ValField), ValField);
-	extlen += setfield(fh, optstr(argv, opt, ProdIDField), optlen(opt,ProdIDField), ProdIDField);
 
 	*reclen = (sizeof(FixedHeader_T) + extlen);
 
@@ -946,9 +903,6 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 	const char* qual;
 
 	switch (keyfield) {
-		case ProdIDField: 
-			qual=PRODID_QUAL;
-			break;
 		case KeyField: 
 			qual=KEY_QUAL;
 			break;
@@ -966,9 +920,14 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 		const char* key = optstr(argv, opt, keyfield);
 		unsigned short keyLen = optlen(opt, keyfield);
 
-		rc = printfields(hdr);
-		if (rc <= 0) {
-			return 8;
+		/*
+		 * Do not print the dummy NULL record
+		 */
+		if (hasKey(hdr)) {
+			rc = printfields(hdr);
+			if (rc <= 0) {
+				return 8;
+			}
 		}
 		do {
 			rc = vsamread(hdr, MAX_RECLEN, fp);
@@ -993,15 +952,7 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 }
 
 static int listEntries(const char** argv, Options_T* opt) {
-	if (hasFilter(opt, ProdIDField)) {
-		if (hasFilter(opt, KeyField)) {
-			return listEntriesByKey(argv, opt, KeyField);
-		} else {
-			return listEntriesByKey(argv, opt, ProdIDField);
-		}
-	} else {
-		return listEntriesByKey(argv, opt, KeyField);
-	}
+	return listEntriesByKey(argv, opt, KeyField);
 }
 
 static int setKey(const char** argv, Options_T* opt) {

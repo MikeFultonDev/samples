@@ -91,7 +91,8 @@ fi
 prefixnotexist="$(hlq).NOTEXIST"
 out=`XsysvarStderr 1 -D${prefixnotexist} Key`
 rclist="${rclist} $?"
-if [ "${out}" != "Unable to open VSAM dataset //'${prefixnotexist}.KEY.PATH' for read" ]; then
+out=`echo "${out}" | head -1`
+if [ "${out}" != "Unable to open VSAM dataset //'${prefixnotexist}.KEY.PATH' mode rb,type=record" ]; then
 	echo "Check for error with non-existant VSAM Cluster too long failed" >&2
 	exit 16
 fi
