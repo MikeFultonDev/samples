@@ -14,7 +14,7 @@ while [ true ]; do
 	if [ $count -gt 100 ]; then 
   		break;
 	fi
-	Xsysvar -D${hlq} -P${count} BigColor${count}=${count}; 
+	Xsysvar -D${hlq} BigColor${count} >/dev/null
 	if [ $? -gt 0 ]; then 
 		echo "Failed after $count iterations" >&2
 		break;
