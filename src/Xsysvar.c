@@ -9,10 +9,10 @@
  **********************************************************************/
 
 #include "//'SYS1.SAMPLIB(CSRSIC)'"
-#include <cvt.h>
-#include <ihaecvt.h>
-#include <stdio.h>
 #define _OPEN_SYS_UNLOCKED_EXT 1
+#define _XOPEN_SOURCE 1
+
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <stddef.h>
@@ -72,15 +72,25 @@ typedef enum {
 	FullMatch=3
 } KeyMatch_T;
 
+typedef enum {
+	Entry=1,
+	Exit=2,
+	General=3
+} MsgType_T;
+
 typedef struct {
 	char vsamCluster[MAX_DSNAME_LEN+1];
 	size_t argindex[NumFields];
 	size_t offset[NumFields];
 	size_t len[NumFields];
 	int list:1;
+	int timing:1;
 	int delete:1;
 	int get:1;
 	int set:1;
+	unsigned int indent:3;
+	clock_t cpustart;
+	unsigned int wallstart;
 } Options_T;
 
 typedef _Packed struct {
@@ -136,6 +146,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "  -C<comment>: Comment <comment> specified\n");
 	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
 	fprintf(stderr, "  -d: Delete key (with optional fields)\n");
+	fprintf(stderr, "  -t: Print out timing information\n");
 	fprintf(stderr, "Note:\n");
 	fprintf(stderr, " The combined length of the key, value, and filters must be less than 32K bytes\n");
 	fprintf(stderr, "Examples:\n");
@@ -206,6 +217,20 @@ size_t optlen(Options_T* opt, VSAMField_T field) {
 	return opt->len[field];
 }
 
+/*
+ * the following fractional portion of 'about' one second wraps every 1.048576 seconds  
+ */
+#define STCK_BIT31_TIME_SECS (1.048576)
+static unsigned int fracsec() {
+	char time[16];
+	char* ptime = time;
+	unsigned int fsec;
+
+	__asm(" STCK %0" : "=m"(*ptime) : : );
+	fsec = *((unsigned int*) &ptime[4]);
+	return fsec;
+}
+
 static int processArgs(int argc, const char** argv, Options_T* opt) {
 	int i, rc;
 
@@ -251,6 +276,13 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 					break;
 				case 'd':
 					opt->delete = 1;
+					break;
+				case 't':
+					opt->timing = 1;
+					opt->cpustart = clock();
+					opt->wallstart = fracsec();
+					printf("Times printed are CPU time then wall clock time, in seconds\n");
+					printf("Total wall clock time should not exceed 1s. Wall clock times will be wrong otherwise\n");
 					break;
 				default:
 					fprintf(stderr, "Unknown option:%s\n", arg);
@@ -300,59 +332,6 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 		return 8;
 	}
 	return 0;
-}
-
-
-static FILE* vsamopen(const char* dataset, const char* qual, const char* fmt) {
-	char mvsname[MAX_DSNAME_LEN+5];
-	FILE* fp;
-	int saveerrno;
-
-	if (strlen(dataset) + strlen(qual) > MAX_DSNAME_LEN) {
-		fprintf(stderr, "VSAM Cluster key/value dataset name invalid: %s\n", dataset);
-		return NULL;
-	}
-	sprintf(mvsname, "//'%s%s'", dataset, qual);
-	fp=fopen(mvsname, fmt);
-	if (!fp) {
-		saveerrno=errno;
-		fprintf(stderr, "Unable to open VSAM dataset %s mode %s\n", mvsname, fmt);
-		errno=saveerrno;
-		perror(mvsname);
-	}
-	return fp;
-}
-
-static size_t vsamread(void* buff, size_t numbytes, FILE* fp) {
-	int saveerrno;
-	size_t rc=fread(buff, 1, numbytes, fp);
-	if (rc == 0 && !feof(fp)) {
-		saveerrno=errno;
-		fprintf(stderr, "Unable to read from VSAM dataset\n");
-		errno=saveerrno;
-		perror("fread");
-	}
-	return rc;
-}
-
-static int vsamwrite(const char* buff, size_t numbytes, FILE* fp) {
-	int saveerrno;
-	int rc=fwrite(buff, 1, numbytes, fp);
-	if (rc != numbytes) {
-		__amrc_type save_amrc = *__amrc;
-		unsigned int* rplfdbwd = (unsigned int*) save_amrc.__rplfdbwd;
-		saveerrno=errno;
-		fprintf(stderr, "last fwrite errno=%d rplfdbwd=%X, lastop=%d syscode=%X rc=%d\n",
-			   errno,
-			   *rplfdbwd,
-			   save_amrc.__last_op,
-			   save_amrc.__code.__abend.__syscode,
-			   save_amrc.__code.__abend.__rc);
-		fprintf(stderr, "Unable to write to VSAM dataset. Expected to write %d bytes but wrote %d bytes\n", numbytes, rc);
-		errno=saveerrno;
-		perror("fwrite");
-	}
-	return rc;
 }
 
 static int hasKey(FixedHeader_T* hdr) {
@@ -597,8 +576,119 @@ static KeyMatch_T vsamkeymatch(FixedHeader_T* hdr, Options_T* opt, const char** 
 	}
 	return fieldCheck;
 }
+ 
 
-static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, const char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
+static void print_timing(Options_T* opt, MsgType_T type, const char* msg) {
+	const char blanks[8] = "        ";
+	clock_t cputime = clock(); /* time returned is in micro-seconds */
+	unsigned long cpudiff = cputime - opt->cpustart;
+	double cpuprt;
+	unsigned int walltime = fracsec(); /* time returned is in fractional seconds (roughly) */
+	double walldiff;
+	double wallprt;
+	const double maxwall = (double) 0xFFFFFFFF;
+	
+	if (walltime > opt->wallstart) {
+		walldiff = (double)(walltime - opt->wallstart);
+	} else {
+		walldiff = maxwall - ((double)opt->wallstart) + ((double)walltime);
+	}
+	wallprt = walldiff / maxwall * STCK_BIT31_TIME_SECS;
+	cpuprt = ((double) cpudiff) / ((double) CLOCKS_PER_SEC);
+	switch (type) {
+		case Entry: 
+			printf("%.*s>>>%s %lf %lf\n", opt->indent, blanks, msg, cpuprt, wallprt);	
+			opt->indent++;
+			break;
+		case Exit: 
+			opt->indent--;
+			printf("%.*s<<<%s %lf %lf\n", opt->indent, blanks, msg, cpuprt, wallprt);	
+			break;
+		case General:
+			printf("%.*s%s %lf %lf\n", opt->indent, blanks, msg, cpuprt, wallprt);	
+			break;
+	}
+}
+#pragma noinline(print_timing)
+
+static void timing(Options_T* opt, MsgType_T type, const char* msg) {
+	if (!opt->timing) {         
+		return;
+	}
+	print_timing(opt, type, msg);
+}
+
+static FILE* vsamopen(Options_T* opt, const char* dataset, const char* qual, const char* fmt) {
+	char mvsname[MAX_DSNAME_LEN+5];
+	FILE* fp;
+	int saveerrno;
+
+	timing(opt, Entry, "vsamopen");
+	if (strlen(dataset) + strlen(qual) > MAX_DSNAME_LEN) {
+		fprintf(stderr, "VSAM Cluster key/value dataset name invalid: %s\n", dataset);
+		return NULL;
+	}
+	sprintf(mvsname, "//'%s%s'", dataset, qual);
+	fp=fopen(mvsname, fmt);
+	if (!fp) {
+		saveerrno=errno;
+		fprintf(stderr, "Unable to open VSAM dataset %s mode %s\n", mvsname, fmt);
+		errno=saveerrno;
+		perror(mvsname);
+	}
+	timing(opt, Exit, "vsamopen");
+	return fp;
+}
+
+static size_t vsamread(Options_T* opt, void* buff, size_t numbytes, FILE* fp) {
+	int saveerrno;
+	size_t rc;
+
+	timing(opt, Entry, "vsamread");
+	rc=fread(buff, 1, numbytes, fp);
+	if (rc == 0 && !feof(fp)) {
+		saveerrno=errno;
+		fprintf(stderr, "Unable to read from VSAM dataset\n");
+		errno=saveerrno;
+		perror("fread");
+	}
+	timing(opt, Exit, "vsamread");
+	return rc;
+}
+
+static int vsamwrite(Options_T* opt, const char* buff, size_t numbytes, FILE* fp) {
+	int saveerrno;
+	size_t rc;
+
+	timing(opt, Entry, "vsamwrite");
+	rc=fwrite(buff, 1, numbytes, fp);
+	if (rc != numbytes) {
+		__amrc_type save_amrc = *__amrc;
+		unsigned int* rplfdbwd = (unsigned int*) save_amrc.__rplfdbwd;
+		saveerrno=errno;
+		fprintf(stderr, "last fwrite errno=%d rplfdbwd=%X, lastop=%d syscode=%X rc=%d\n",
+			   errno,
+			   *rplfdbwd,
+			   save_amrc.__last_op,
+			   save_amrc.__code.__abend.__syscode,
+			   save_amrc.__code.__abend.__rc);
+		fprintf(stderr, "Unable to write to VSAM dataset. Expected to write %d bytes but wrote %d bytes\n", numbytes, rc);
+		errno=saveerrno;
+		perror("fwrite");
+	}
+	timing(opt, Exit, "vsamwrite");
+	return rc;
+}
+
+static int vsamdelrec(Options_T* opt, FILE* fp) {
+	int rc;
+	timing(opt, Entry, "vsamdelrec");
+	rc = fdelrec(fp);
+	timing(opt, Exit, "vsamdelrec");
+	return rc;
+}
+	
+static FixedHeader_T* vsamxlocate_internal(FILE* fp, char* buff, const char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
 	FixedHeader_T* hdr = (FixedHeader_T*) buff;	
 	char* vsamfield;
 	const char* userfield;
@@ -628,7 +718,7 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, const char** argv, Optio
 		return NULL;
 	}
 	while (result == PartialMatch) {
-		rc = vsamread(hdr, MAX_RECLEN, fp);
+		rc = vsamread(opt, hdr, MAX_RECLEN, fp);
 		if (rc == 0) {
 			if (!feof(fp)) {
 				fprintf(stderr, "Internal Error: Unable to read record after flocate of %s successful\n", vsamfield);
@@ -644,15 +734,26 @@ static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, const char** argv, Optio
 	return hdr;
 }
 
-static int vsamclose(FILE* fp) {
+static FixedHeader_T* vsamxlocate(FILE* fp, char* buff, const char** argv, Options_T* opt, VSAMField_T fieldName, size_t* reclen) {
+	FixedHeader_T* hdr;
+	timing(opt, Entry, "vsamxlocate");
+	hdr = vsamxlocate_internal(fp, buff, argv, opt, fieldName, reclen);
+	timing(opt, Exit, "vsamxlocate");
+	return hdr;
+}
+
+static int vsamclose(Options_T* opt, FILE* fp) {
 	int saveerrno;
-	int rc = fclose(fp);
+	int rc;
+	timing(opt, Entry, "vsamclose");
+	rc = fclose(fp);
 	if (rc) {
 		saveerrno=errno;
 		fprintf(stderr, "Unable to close VSAM dataset\n");
 		errno=saveerrno;
 		perror("fclose");
 	}
+	timing(opt, Exit, "vsamclose");
 	return rc;
 }
 
@@ -801,23 +902,6 @@ int ksdskey(KSDSKey_T* key) {
 	return 0;
 }
 
-struct ihaipa* ipa() {
-	struct psa* psa = 0;
-	struct cvtmap* cvt = psa->cvt;
-	struct ecvt* ecvt = (cvt->cvtecvt);
-	struct ihaipa* ipa = (ecvt->ecvtipa);
-
-	return ipa;
-}
-
-const char* sysplex() {
-	return ipa()->ipasxnam;
-}	
-
-const char* lpar() {
-	return ipa()->ipalpnam;
-}
-
 static int setRecord(char* buff, size_t *reclen, const char** argv, Options_T* opt) {
 	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
@@ -847,7 +931,7 @@ static int getKey(const char** argv, Options_T* opt) {
 	size_t reclen;
 	char buff[MAX_RECLEN];
 
-	vsamfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb,type=record");
+	vsamfp = vsamopen(opt, opt->vsamCluster, KEY_QUAL, "rb,type=record");
 	if (!vsamfp) {
 		return 16;
 	}
@@ -859,7 +943,7 @@ static int getKey(const char** argv, Options_T* opt) {
 	if (rc <= 0) {
 		return 8;
 	}
-	rc = vsamclose(vsamfp);
+	rc = vsamclose(opt, vsamfp);
 	if (rc) {
 		return 12;
 	}
@@ -874,7 +958,7 @@ static int deleteKey(const char** argv, Options_T* opt) {
 	size_t reclen;
 	char buff[MAX_RECLEN];
 
-	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
+	vsamkfp = vsamopen(opt, opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamkfp) {
 		return 16;
 	}
@@ -882,11 +966,11 @@ static int deleteKey(const char** argv, Options_T* opt) {
 	if (!hdr) {
 		return 1;
 	}
-	rc = fdelrec(vsamkfp);
+	rc = vsamdelrec(opt, vsamkfp);
 	if (rc) {
 		return 8;
 	}
-	rc = vsamclose(vsamkfp);
+	rc = vsamclose(opt, vsamkfp);
 	if (rc) {
 		return 10;
 	}
@@ -911,7 +995,7 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 	                exit(16);
 	}
 
-	fp = vsamopen(opt->vsamCluster, qual, "rb,type=record");
+	fp = vsamopen(opt, opt->vsamCluster, qual, "rb,type=record");
 	if (!fp) {
 		return 16;
 	}
@@ -930,7 +1014,7 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 			}
 		}
 		do {
-			rc = vsamread(hdr, MAX_RECLEN, fp);
+			rc = vsamread(opt, hdr, MAX_RECLEN, fp);
 			if (rc == 0) {
 				if (!feof(fp)) {
 					fprintf(stderr, "Internal Error: Unable to read record after flocate/fread of %s successful\n", key);
@@ -944,7 +1028,7 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 			hdr = NULL;
 		}
 	}
-	rc = vsamclose(fp);
+	rc = vsamclose(opt, fp);
 	if (rc) {
 		return 12;
 	}
@@ -964,7 +1048,7 @@ static int setKey(const char** argv, Options_T* opt) {
 	FixedHeader_T* hdr;
 	char buff[MAX_RECLEN];
 
-	vsamkfp = vsamopen(opt->vsamCluster, KEY_QUAL, "rb+,type=record");
+	vsamkfp = vsamopen(opt, opt->vsamCluster, KEY_QUAL, "rb+,type=record");
 	if (!vsamkfp) {
 		return 16;
 	}
@@ -975,28 +1059,18 @@ static int setKey(const char** argv, Options_T* opt) {
 		return 12;
 	}
 	if (hdr) {
-		rc = fdelrec(vsamkfp);
+		rc = vsamdelrec(opt, vsamkfp);
 		if (rc) {
 			return 8;
 		}
 	}
-	rc = vsamclose(vsamkfp);
-	if (rc) {
-		return 10;
-	}
-
-	vsamcfp = vsamopen(opt->vsamCluster, CLUSTER_QUAL, "rb+,type=record");
-	if (!vsamcfp) {
-		return 7;
-	}
-	rc = vsamwrite(buff, newreclen, vsamcfp);
+	rc = vsamwrite(opt, buff, newreclen, vsamkfp);
 	if (rc != newreclen) {
 		return 9;
 	}
-	
-	rc = vsamclose(vsamcfp);
+	rc = vsamclose(opt, vsamkfp);
 	if (rc) {
-		return 13;
+		return 10;
 	}
 	return 0;
 }
@@ -1008,6 +1082,7 @@ int main(int argc, const char** argv) {
 	if (rc=processArgs(argc, argv, &opt)) {
 		return rc;	
 	}
+	timing(&opt, Entry, "main");
 	if (opt.list) {
 		rc=listEntries(argv, &opt);
 	} else if (opt.delete) {
@@ -1020,5 +1095,6 @@ int main(int argc, const char** argv) {
 		fprintf(stderr, "Key not specified\n");
 		return syntax(argv[0]);
 	}
+	timing(&opt, Exit, "main");
 	return rc;
 }

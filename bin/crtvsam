@@ -104,6 +104,7 @@ function crtVSAM {
   DEFINE CLUSTER ( -
     NAME(${cluster}) -
     MEGABYTES(10,50) -
+    SHAREOPTIONS(2 3) -
     ${type} -
     RECSZ(${fixedRecord} 32761) -
   ) -
@@ -162,6 +163,7 @@ function crtAltIndex {
     NAME(${cluster}.${keyName}) -
     RELATE(${cluster}) -
     MEGABYTES(2,10) -
+    SHAREOPTIONS(2 3) -
     KEYS(${keyLen} ${keyOffset}) -
     ${keyType} -
     UPGRADE -
