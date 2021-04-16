@@ -11,7 +11,7 @@ count=0
 date 
 while [ true ]; do
 	count=$((count+1))
-	if [ $count -gt 100000 ]; then 
+	if [ $count -gt 1000 ]; then 
   		break;
 	fi
 	Xsysvar -D${hlq} BigColor${count}=${count}; 
