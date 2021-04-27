@@ -138,9 +138,13 @@ typedef _Packed struct {
 	unsigned short filterXLen;
 } FixedHeader_T;
 
+#define KSDSKEYNAME "KSDSKEY"
+#define KEYNAME     "KEY"
+
 #define RECLEN (sizeof(FixedHeader_T))
 #define KSDSKEYLEN (sizeof(KSDSKey_T))
 #define KSDSKEYOFF (offsetof(FixedHeader_T, ksdskey))
+#define KEYLEN (FIXED_KEY_SIZE)
 #define KEYOFF (offsetof(FixedHeader_T, key))
 
 static int syntax(const char* prog) {
@@ -1252,7 +1256,7 @@ static int defineCluster(Options_T* opt) {
 	char* defineOpts[] = {  NULL };
 	int rc;
 
-	sprintf(input, dcfmt, opt->vsamCluster, KSDSKEYLEN, KSDSKEYOFF, RECLEN, opt->vsamCluster, opt->vsamCluster, "KSDSKEY");
+	sprintf(input, dcfmt, opt->vsamCluster, KSDSKEYLEN, KSDSKEYOFF, RECLEN, opt->vsamCluster, opt->vsamCluster, KSDSKEYNAME);
 	rc = idcams(input, &output, defineOpts);
 	if (rc) {
 		fputs(output, stderr);
@@ -1307,6 +1311,80 @@ static int reproCluster(Options_T* opt) {
 	return rc;
 }
 
+static int defineAIX(Options_T* opt) {
+	const char dafmt[] = "\
+  DEFINE AIX ( - \n\
+    NAME(%s.%s) - \n\
+    RELATE(%s) - \n\
+    MEGABYTES(2,10) - \n\
+    SHAREOPTIONS(2 3) - \n\
+    KEYS(%d %d) - \n\
+    NONUNIQUEKEY - \n\
+    UPGRADE - \n\
+  ) - \n\
+  DATA ( - \n\
+    NAME(%s.%s.DATA) - \n\
+  ) - \n\
+  INDEX ( - \n\
+    NAME(%s.%s.INDEX) - \n\
+  )";
+	char input[15*80];
+	char* output = NULL;
+	char* defineOpts[] = {  NULL };
+	int rc;
+
+	sprintf(input, dafmt, opt->vsamCluster, KEYNAME, opt->vsamCluster, KEYLEN, KEYOFF, opt->vsamCluster, KEYNAME, opt->vsamCluster, KEYNAME);
+	rc = idcams(input, &output, defineOpts);
+	if (rc) {
+		fputs(output, stderr);
+	}
+	free(output);
+
+	return rc;
+}
+
+static int definePath(Options_T* opt) {
+	const char dpfmt[] = "\
+  DEFINE PATH ( - \n\
+    NAME(%s.%s.PATH) - \n\
+    PATHENTRY(%s.%s) - \n\
+    UPDATE - \n\
+  )";
+	char input[5*80];
+	char* output = NULL;
+	char* defineOpts[] = {  NULL };
+	int rc;
+
+	sprintf(input, dpfmt, opt->vsamCluster, KEYNAME, opt->vsamCluster, KEYNAME);
+	rc = idcams(input, &output, defineOpts);
+	if (rc) {
+		fputs(output, stderr);
+	}
+	free(output);
+
+	return rc;
+}
+
+static int buildIndex(Options_T* opt) {
+	const char bifmt[] = "\
+  BLDINDEX  - \n\
+    INDATASET(%s) - \n\
+    OUTDATASET(%s.%s)";
+	char input[3*80];
+	char* output = NULL;
+	char* buildOpts[] = {  NULL };
+	int rc;
+
+	sprintf(input, bifmt, opt->vsamCluster, opt->vsamCluster, KEYNAME);
+	rc = idcams(input, &output, buildOpts);
+	if (rc) {
+		fputs(output, stderr);
+	}
+	free(output);
+
+	return rc;
+}
+
 static int createDB(const char** argv, Options_T* opt) {
 	FILE* vsamkfp = vsamopen_internal(opt, opt->vsamCluster, KEY_QUAL, "rb,type=record", 0);
 	FILE* vsamcfp = vsamopen_internal(opt, opt->vsamCluster, CLUSTER_QUAL, "rb,type=record", 0);
@@ -1328,6 +1406,18 @@ static int createDB(const char** argv, Options_T* opt) {
 		return rc;
 	}
 	rc = reproCluster(opt);
+	if (rc) {
+		return rc;
+	}
+	rc = defineAIX(opt);
+	if (rc) {
+		return rc;
+	}
+	rc = definePath(opt);
+	if (rc) {
+		return rc;
+	}
+	rc = buildIndex(opt);
 	if (rc) {
 		return rc;
 	}
