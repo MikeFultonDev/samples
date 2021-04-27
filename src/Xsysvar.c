@@ -1234,15 +1234,7 @@ for (i=0; i<mvscmdcoreopts+numopts; ++i) {
 	return rc;
 }
 
-static int createDB(const char** argv, Options_T* opt) {
-	FILE* vsamkfp = vsamopen_internal(opt, opt->vsamCluster, KEY_QUAL, "rb,type=record", 0);
-	FILE* vsamcfp = vsamopen_internal(opt, opt->vsamCluster, CLUSTER_QUAL, "rb,type=record", 0);
-	int rc;
-	char input[11*80];
-	char reproIn[80];
-	char reproOut[80];
-	char* output = NULL;
-	char* defineOpts[] = {  NULL };
+static int defineCluster(Options_T* opt) {
 	const char dcfmt[] = "\
   DEFINE CLUSTER ( - \n\
     NAME(%s) - \n\
@@ -1255,6 +1247,26 @@ static int createDB(const char** argv, Options_T* opt) {
     NAME(%s.DATA) - \n\
   ) - \n\
   INDEX (NAME(%s.%s.INDEX))";
+	char input[11*80];
+	char* output = NULL;
+	char* defineOpts[] = {  NULL };
+	int rc;
+
+	sprintf(input, dcfmt, opt->vsamCluster, KSDSKEYLEN, KSDSKEYOFF, RECLEN, opt->vsamCluster, opt->vsamCluster, "KSDSKEY");
+	rc = idcams(input, &output, defineOpts);
+	if (rc) {
+		fputs(output, stderr);
+	}
+	free(output);
+
+	return rc;
+}
+
+static int reproCluster(Options_T* opt) {
+	int rc;
+	char reproIn[80];
+	char reproOut[80];
+	char* output = NULL;
 	const char reproInFmt[] = "--in=%s,lrecl=%d";
 	const char reproOutFmt[] = "--out=%s";
 	char* reproopts[] = { reproIn, reproOut, NULL };
@@ -1263,26 +1275,6 @@ static int createDB(const char** argv, Options_T* opt) {
 	char* tmpreprofile = tmpnam(NULL);
 	int tfd;
 	int reprowritten;
-
-	if (vsamkfp != NULL) {
-		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, KEY_QUAL);
-		vsamclose(opt, vsamkfp);
-		return 8;
-	}
-	if (vsamcfp != NULL) {
-		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, CLUSTER_QUAL);
-		vsamclose(opt, vsamkfp);
-		return 8;
-	}
-
-	sprintf(input, dcfmt, opt->vsamCluster, KSDSKEYLEN, KSDSKEYOFF, RECLEN, opt->vsamCluster, opt->vsamCluster, "KSDSKEY");
-	rc = idcams(input, &output, defineOpts);
-	if (rc) {
-		fputs(output, stderr);
-		return rc;
-	}
-	free(output);
-	output=NULL;
 
 	createInitialRecord(&initrec);
 
@@ -1302,18 +1294,43 @@ static int createDB(const char** argv, Options_T* opt) {
 		return 12;
 	}
 
-	sprintf(reproIn, tmpreprofile, reproInFmt, RECLEN);
+	sprintf(reproIn, reproInFmt, tmpreprofile, RECLEN);
 	sprintf(reproOut, reproOutFmt, opt->vsamCluster);
 
-printf("%s %s %s", reprostdin, reproIn, reproOut);
 	rc = idcams(reprostdin, &output, reproopts);
 	if (rc) {
 		fputs(output, stderr);
+	}
+	free(output);
+	remove(tmpreprofile);
+
+	return rc;
+}
+
+static int createDB(const char** argv, Options_T* opt) {
+	FILE* vsamkfp = vsamopen_internal(opt, opt->vsamCluster, KEY_QUAL, "rb,type=record", 0);
+	FILE* vsamcfp = vsamopen_internal(opt, opt->vsamCluster, CLUSTER_QUAL, "rb,type=record", 0);
+	int rc;
+
+	if (vsamkfp != NULL) {
+		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, KEY_QUAL);
+		vsamclose(opt, vsamkfp);
+		return 8;
+	}
+	if (vsamcfp != NULL) {
+		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, CLUSTER_QUAL);
+		vsamclose(opt, vsamkfp);
+		return 8;
+	}
+
+	rc = defineCluster(opt);
+	if (rc) {
 		return rc;
 	}
-	remove(tmpreprofile);
-	free(output);
-	output=NULL;
+	rc = reproCluster(opt);
+	if (rc) {
+		return rc;
+	}
 	
 	return rc;
 }
