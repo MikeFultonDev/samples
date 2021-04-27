@@ -18,6 +18,17 @@
 #include <stddef.h>
 #include <errno.h>
 
+#define _POSIX_SOURCE
+
+#include<unistd.h>
+#include<sys/wait.h>
+#include<fcntl.h>
+#include<signal.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdio.h>
+
+
 #define MAX_DSNAME_LEN (44)
 #define MAX_RECLEN (32761)
 #define FIXED_KEY_SIZE (16)
@@ -88,7 +99,8 @@ typedef struct {
 	int delete:1;
 	int get:1;
 	int set:1;
-	unsigned int indent:3;
+	int create:1;
+	unsigned int indent:2;
 	clock_t cpustart;
 	unsigned int wallstart;
 } Options_T;
@@ -126,8 +138,13 @@ typedef _Packed struct {
 	unsigned short filterXLen;
 } FixedHeader_T;
 
+#define RECLEN (sizeof(FixedHeader_T))
+#define KSDSKEYLEN (sizeof(KSDSKey_T))
+#define KSDSKEYOFF (offsetof(FixedHeader_T, ksdskey))
+#define KEYOFF (offsetof(FixedHeader_T, key))
+
 static int syntax(const char* prog) {
-	fprintf(stderr, "%s [-?hldCXSPVRMD] <key>[=<val>]\n", prog);
+	fprintf(stderr, "%s [-?hldctCXSPVRMD] <key>[=<val>]\n", prog);
 	fprintf(stderr, "Where:\n");
 	fprintf(stderr, " -?|-h: show this help\n");
 	fprintf(stderr, " Filters can be specified for set/get/list\n");
@@ -144,12 +161,15 @@ static int syntax(const char* prog) {
  	fprintf(stderr, "      Each line is of the format:<sysplex>\t<system>\t<prod>\t<ver>\t<rel>\t<mod>\t<val>\t<comment>\n");
 	fprintf(stderr, " Other options:\n");
 	fprintf(stderr, "  -C<comment>: Comment <comment> specified\n");
-	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is SYS1.XSYSVAR\n");
+	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is %s\n", DEFAULT_VSAM_CLUSTER);
 	fprintf(stderr, "  -d: Delete key (with optional fields)\n");
 	fprintf(stderr, "  -t: Print out timing information\n");
+	fprintf(stderr, "  -c: Create database\n");
 	fprintf(stderr, "Note:\n");
 	fprintf(stderr, " The combined length of the key, value, and filters must be less than 32K bytes\n");
 	fprintf(stderr, "Examples:\n");
+	fprintf(stderr, " Create database using default high-level qualifier %s\n", DEFAULT_VSAM_CLUSTER);
+	fprintf(stderr, "  %s -c\n");
 	fprintf(stderr, " Set key/value pair for JAVA_HOME globally\n");
 	fprintf(stderr, "  %s JAVA_HOME=/usr/lpp/java/current_64\n", prog);
 	fprintf(stderr, " Set key/value pair for JAVA_HOME for SYSPLEX plex, SYSTEM S0W1\n");
@@ -274,6 +294,9 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 				case 'l':
 					opt->list = 1;
 					break;
+				case 'c':
+					opt->create = 1;
+					break;
 				case 'd':
 					opt->delete = 1;
 					break;
@@ -319,6 +342,10 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 		}
 	}
 
+	if (opt->create && (opt->list || opt->delete || opt->set || opt->get)) {
+		fprintf(stderr, "-c can not be specified when listing, getting, setting, or deleting a variable\n");
+		return 8;
+	}
 	if (opt->set && opt->list) {
 		fprintf(stderr, "-l can not be specified when setting a variable\n");
 		return 8;
@@ -618,7 +645,7 @@ static void timing(Options_T* opt, MsgType_T type, const char* msg) {
 	print_timing(opt, type, msg);
 }
 
-static FILE* vsamopen(Options_T* opt, const char* dataset, const char* qual, const char* fmt) {
+static FILE* vsamopen_internal(Options_T* opt, const char* dataset, const char* qual, const char* fmt, int verbose) {
 	char mvsname[MAX_DSNAME_LEN+5];
 	FILE* fp;
 	int saveerrno;
@@ -630,7 +657,7 @@ static FILE* vsamopen(Options_T* opt, const char* dataset, const char* qual, con
 	}
 	sprintf(mvsname, "//'%s%s'", dataset, qual);
 	fp=fopen(mvsname, fmt);
-	if (!fp) {
+	if (!fp && verbose) {
 		saveerrno=errno;
 		fprintf(stderr, "Unable to open VSAM dataset %s mode %s\n", mvsname, fmt);
 		errno=saveerrno;
@@ -638,6 +665,10 @@ static FILE* vsamopen(Options_T* opt, const char* dataset, const char* qual, con
 	}
 	timing(opt, Exit, "vsamopen");
 	return fp;
+}
+
+static FILE* vsamopen(Options_T* opt, const char* dataset, const char* qual, const char* fmt) {
+	return vsamopen_internal(opt, dataset, qual, fmt, 1);
 }
 
 static size_t vsamread(Options_T* opt, void* buff, size_t numbytes, FILE* fp) {
@@ -902,6 +933,20 @@ int ksdskey(KSDSKey_T* key) {
 	return 0;
 }
 
+static int createInitialRecord(FixedHeader_T* fh) {
+        KSDSKey_T primarykey;
+	char key[FIXED_KEY_SIZE+1] = "xsysvar";
+	char val[FIXED_VAL_SIZE+1] = "1.0.0";
+        
+        memset(fh, 0, sizeof(FixedHeader_T));
+        ksdskey(&primarykey);
+        setfield(fh, (const char*) &primarykey, sizeof(KSDSKey_T), KSDSKeyField);
+        setfield(fh, key, FIXED_KEY_SIZE, KeyField);
+        setfield(fh, val, FIXED_VAL_SIZE, ValField);
+        
+	return sizeof(FixedHeader_T);
+}
+
 static int setRecord(char* buff, size_t *reclen, const char** argv, Options_T* opt) {
 	FixedHeader_T* fh = (FixedHeader_T*) buff;
 	size_t extlen=0;
@@ -952,7 +997,6 @@ static int getKey(const char** argv, Options_T* opt) {
 
 static int deleteKey(const char** argv, Options_T* opt) {
 	FILE* vsamkfp;
-	FILE* vsamcfp;
 	int rc;
 	FixedHeader_T* hdr;
 	size_t reclen;
@@ -1041,7 +1085,6 @@ static int listEntries(const char** argv, Options_T* opt) {
 
 static int setKey(const char** argv, Options_T* opt) {
 	FILE* vsamkfp;
-	FILE* vsamcfp;
 	size_t currreclen;
 	size_t newreclen;
 	int rc;
@@ -1075,6 +1118,206 @@ static int setKey(const char** argv, Options_T* opt) {
 	return 0;
 }
 
+static int idcams(const char* input, char** output, char* opts[]) {
+	char buf[137+1];
+	int stdinfd[2];
+	int stdoutfd[2];
+	int stderrfd[2];
+	pid_t pid = 0;
+	FILE* memfp;
+	char** argv;
+	size_t numopts=0;
+	int status;
+	int rc;
+	int inlen;
+	int outlen;
+	int i=0;
+	const int mvscmdcoreopts=4;
+
+	rc = pipe(stdinfd);
+	if (rc) { fprintf(stderr, "idcams: Unable to open stdin pipe\n"); return rc; }	
+	rc = pipe(stdoutfd);
+	if (rc) { fprintf(stderr, "idcams: Unable to open stdout pipe\n"); return rc; }	
+	rc = pipe(stderrfd);
+	if (rc) { fprintf(stderr, "idcams: Unable to open stderr pipe\n"); return rc; }	
+	pid = fork();
+
+	if (pid == 0) {
+		/* Child */
+		rc = dup2(stdinfd[0], STDIN_FILENO);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to dup2 stdin pipe\n"); return rc; }	
+		rc = dup2(stdoutfd[1], STDOUT_FILENO);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to dup2 stdout pipe\n"); return rc; }	
+		rc = dup2(stderrfd[1], STDERR_FILENO);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to dup2 stderr pipe\n"); return rc; }	
+
+		rc = close(stdinfd[1]);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to close child stdin pipe\n"); return rc; }	
+		rc = close(stdoutfd[0]);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to close child stdout pipe\n"); return rc; }	
+		rc = close(stderrfd[0]);
+		if (rc == -1) { fprintf(stderr, "idcams: Unable to close child stderr pipe\n"); return rc; }	
+
+		while (opts[numopts] != NULL) { ++numopts; }
+		numopts++;
+		argv = malloc((mvscmdcoreopts+numopts) * (sizeof(const char**)));
+		argv[0] = "mvscmdauthhelper";
+		argv[1] = "--pgm=IDCAMS";
+		argv[2] = "--sysin=stdin";
+		argv[3] = "--sysprint=stdout";
+		memcpy(&argv[mvscmdcoreopts], opts, numopts*(sizeof(const char**)));
+printf("copied %d arguments for a total of %d arguments\n", numopts, numopts+mvscmdcoreopts);
+for (i=0; i<mvscmdcoreopts+numopts; ++i) {
+  printf("%p (%s)\n", argv[i], (argv[i] == NULL ? "null" : argv[i]));
+}
+		execvp(argv[0], argv);  
+		exit(1);
+	}
+
+	/* Parent */
+	rc = close(stdinfd[0]);
+	if (rc == -1) { fprintf(stderr, "idcams: Unable to close parent stdin pipe\n"); return rc; }	
+	rc = close(stdoutfd[1]);
+	if (rc == -1) { fprintf(stderr, "idcams: Unable to close parent stdout pipe\n"); return rc; }	
+	rc = close(stderrfd[1]);
+	if (rc == -1) { fprintf(stderr, "idcams: Unable to close parent stderr pipe\n"); return rc; }	
+
+	inlen = strlen(input);
+	rc = write(stdinfd[1], input, inlen);
+	if (rc != inlen) { fprintf(stderr, "idcams: Expected to write %d input bytes but wrote %d bytes\n", inlen, rc); return -1; }
+
+	rc = close(stdinfd[1]);
+	if (rc == -1) { fprintf(stderr, "idcams: Unable to close parent stderr pipe\n"); return rc; }	
+
+	memfp = fopen("idcams.output", "wb+,type=memory");
+	if (memfp == NULL) { fprintf(stderr, "idcams: Unable to open memory file\n"); return -1; }
+	while ((rc = read(stdoutfd[0], buf, sizeof(buf))) > 0) {
+		int written;
+		written = fwrite(buf, 1, rc, memfp);
+		if (written != rc) { fprintf(stderr, "idcams: Expected to write %d output bytes but wrote %d bytes\n", rc, written); return -1; }
+	}
+	rc = close(stdoutfd[0]);
+	if (rc == -1) { fprintf(stderr, "idcams: Unable to close parent stdout pipe\n"); return rc; }	
+	outlen = ftell(memfp);
+	if (outlen < 0) { fprintf(stderr, "idcams: ftell on memory file failed\n"); return -1; }
+	rewind(memfp);
+
+	*output = malloc(outlen);
+	if (*output == NULL) { fprintf(stderr, "idcams: Unable to malloc %d bytes for output buffer\n", outlen); return -1; }
+	rc = fread(*output, 1, outlen, memfp);
+	if (outlen != rc) { fprintf(stderr, "idcams: Expected to read %d output bytes but wrote %d bytes\n", outlen, rc); return -1; }
+	rc = fclose(memfp);	
+	if (rc) { fprintf(stderr, "idcams: Unable to close memory file\n"); return -1; }	
+	while ((rc = read(stderrfd[0], buf, 256)) > 0) {
+		fprintf(stderr, "%.*s",rc, buf);
+	}
+	rc = close(stderrfd[0]);
+	if (rc) { fprintf(stderr, "idcams: Unable to close parent stderr pipe\n"); return -1; }	
+	do {
+		if ((pid = waitpid(pid, &status, 0)) == -1) {
+			perror("");
+			fprintf(stderr, "idcams: Error waiting for pid\n"); 
+			rc = -1;
+		} else if (pid == 0) {
+			sleep(1);
+		} else {
+			if (WIFEXITED(status)) {
+				rc = WEXITSTATUS(status);
+			} else {
+				if (WIFSIGNALED(status)) {
+					fprintf(stderr, "idcams abended\n");
+				}
+				rc = 255;
+			}
+		}
+	} while (pid == 0);
+	return rc;
+}
+
+static int createDB(const char** argv, Options_T* opt) {
+	FILE* vsamkfp = vsamopen_internal(opt, opt->vsamCluster, KEY_QUAL, "rb,type=record", 0);
+	FILE* vsamcfp = vsamopen_internal(opt, opt->vsamCluster, CLUSTER_QUAL, "rb,type=record", 0);
+	int rc;
+	char input[11*80];
+	char reproIn[80];
+	char reproOut[80];
+	char* output = NULL;
+	char* defineOpts[] = {  NULL };
+	const char dcfmt[] = "\
+  DEFINE CLUSTER ( - \n\
+    NAME(%s) - \n\
+    MEGABYTES(10,50) - \n\
+    SHAREOPTIONS(2 3) - \n\
+    INDEXED KEYS(%d %d) - \n\
+    RECSZ(%d 32761) - \n\
+  ) - \n\
+  DATA ( - \n\
+    NAME(%s.DATA) - \n\
+  ) - \n\
+  INDEX (NAME(%s.%s.INDEX))";
+	const char reproInFmt[] = "--in=%s,lrecl=%d";
+	const char reproOutFmt[] = "--out=%s";
+	char* reproopts[] = { reproIn, reproOut, NULL };
+	const char reprostdin[] = "  REPRO INFILE(IN) OUTFILE(OUT)";
+	FixedHeader_T initrec;          
+	char* tmpreprofile = tmpnam(NULL);
+	int tfd;
+	int reprowritten;
+
+	if (vsamkfp != NULL) {
+		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, KEY_QUAL);
+		vsamclose(opt, vsamkfp);
+		return 8;
+	}
+	if (vsamcfp != NULL) {
+		fprintf(stderr, "Database %s%s already exists. Creation not performed\n", opt->vsamCluster, CLUSTER_QUAL);
+		vsamclose(opt, vsamkfp);
+		return 8;
+	}
+
+	sprintf(input, dcfmt, opt->vsamCluster, KSDSKEYLEN, KSDSKEYOFF, RECLEN, opt->vsamCluster, opt->vsamCluster, "KSDSKEY");
+	rc = idcams(input, &output, defineOpts);
+	if (rc) {
+		fputs(output, stderr);
+		return rc;
+	}
+	free(output);
+	output=NULL;
+
+	createInitialRecord(&initrec);
+
+	tfd = open(tmpreprofile, O_WRONLY | O_CREAT | O_EXCL);
+	if (tfd == -1) {
+		fprintf(stderr, "Unable to open temporary repro file %s\n", tmpreprofile);
+		return 12;
+	}
+	reprowritten = write(tfd, &initrec, sizeof(initrec));
+	if (reprowritten != sizeof(initrec)) {
+		fprintf(stderr, "Unable to write initial record to repro file %s\n", tmpreprofile);
+		return 16;
+	}
+	rc = close(tfd);
+	if (rc == -1) {
+		fprintf(stderr, "Unable to close temporary repro file %s\n", tmpreprofile);
+		return 12;
+	}
+
+	sprintf(reproIn, tmpreprofile, reproInFmt, RECLEN);
+	sprintf(reproOut, reproOutFmt, opt->vsamCluster);
+
+printf("%s %s %s", reprostdin, reproIn, reproOut);
+	rc = idcams(reprostdin, &output, reproopts);
+	if (rc) {
+		fputs(output, stderr);
+		return rc;
+	}
+	remove(tmpreprofile);
+	free(output);
+	output=NULL;
+	
+	return rc;
+}
+
 int main(int argc, const char** argv) {
 	Options_T opt = { 0 };
 	int rc;
@@ -1083,7 +1326,9 @@ int main(int argc, const char** argv) {
 		return rc;	
 	}
 	timing(&opt, Entry, "main");
-	if (opt.list) {
+	if (opt.create) {
+		rc=createDB(argv, &opt);
+	} else if (opt.list) {
 		rc=listEntries(argv, &opt);
 	} else if (opt.delete) {
 		rc=deleteKey(argv, &opt);
