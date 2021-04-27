@@ -1170,10 +1170,6 @@ static int idcams(const char* input, char** output, char* opts[]) {
 		argv[2] = "--sysin=stdin";
 		argv[3] = "--sysprint=stdout";
 		memcpy(&argv[mvscmdcoreopts], opts, numopts*(sizeof(const char**)));
-printf("copied %d arguments for a total of %d arguments\n", numopts, numopts+mvscmdcoreopts);
-for (i=0; i<mvscmdcoreopts+numopts; ++i) {
-  printf("%p (%s)\n", argv[i], (argv[i] == NULL ? "null" : argv[i]));
-}
 		execvp(argv[0], argv);  
 		exit(1);
 	}
