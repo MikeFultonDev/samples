@@ -1,0 +1,80 @@
+#!/bin/sh
+
+#
+# Issue a batch ISPF command    
+#
+# stdin: ISPF command to issue
+# stdout: output from command
+# ISPF return code returned
+#
+ 
+allocateTempISPFDatasets() {
+	hlq=$1
+	rnd=${RANDOM}
+
+	PROF="${hlq}.TEMP.ISPPROF.D${rnd}"
+	TBL="${hlq}.TEMP.ISPTLIB.D${rnd}"
+
+	ds="${PROF} ${TBL}"
+
+	for d in $ds; do
+		dtouch "${d}"
+		rc=$?
+		if [ $rc -gt 0 ]; then
+			return $rc
+		fi
+	done
+	echo "${ds}"
+	return 0
+}
+
+ISPFDDNames() {
+	ISPF_HLQ=$1
+	ISPF_PROF=$2
+	TEMP_TABLE=$3
+	LIB=$4
+
+	STEPLIB=${ISPF_HLQ}.SISPLOAD
+	ISPF_DDNAMES="--steplib=${ISPF_HLQ}.SISPLOAD --ispplib=${ISPF_HLQ}.SISPPENU --ispmlib=${ISPF_HLQ}.SISPMENU --ispslib=${ISPF_HLQ}.SISPSENU \
+	                     --isptlib=${TEMP_TABLE}:${ISPF_HLQ}.SISPTENU --sysexec=${ISPF_HLQ}.SISPCLIB --ispllib=${LIB} \
+	                     --sysprint=* --systsprt=dummy --isplog=dummy --ispprof=${ISPF_PROF}"
+	echo "${ISPF_DDNAMES}"
+	return 0
+}
+
+deleteISPFEnvironment() {
+	tsocmd "delete '${ISPF_PROF}'" >/dev/null 2>&1
+	tsocmd "delete '${TEMP_TABLE}'" >/dev/null 2>&1
+	return 0
+}
+
+#
+# main
+#
+#set -x
+out=""
+while read line; do
+	if [ -z "${out}" ]; then
+		out="${line}\n"
+	else
+		out="${out}${line}\n"
+	fi
+done
+if [ -z "${ISPF_HLQ}" ]; then
+        ISPF_HLQ=ISP
+fi
+
+lib='ibmuser.user.load'
+hlq=`hlq`
+ds=`allocateTempISPFDatasets ${hlq}`
+rc=$?
+if [ $rc -gt 0 ]; then
+        exit $rc
+fi
+
+ispfDDNames=`ISPFDDNames "${ISPF_HLQ}" ${ds} ${lib}`
+
+echo "${out}" | mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ispfDDNames}
+rc=$?
+drm ${ds}
+exit $rc
