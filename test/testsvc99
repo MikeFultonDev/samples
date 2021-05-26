@@ -1,0 +1,32 @@
+#!/bin/sh
+set -x
+
+CFLAGS="DLL,LONGNAME,RENT,SSCOM,CSECT,FLAG(I),WARN64,LANGLVL(EXTENDED),SUPPRESS(CCN3764),GONUMBER,OPT(2)"
+ASMFLAGS="-mNOBATCH,GOFF,RENT,FLAG(0,ALIGN,CONT,NOIMPLEN,PUSH,RECORD,USING0,EXLITW)"
+LKFLAGS="DLL,DYNAM=DLL,CASE=MIXED,TERM"
+
+# Compile, assemble and link the 64-bit executable testcase
+mkdir -p ../bin/64
+cd ../bin/64
+rm -f *.o *.lst svc99basic
+
+INCDIR=`(cd ../../src; echo $PWD)`
+SRCDIR=`(cd ../../src; echo $PWD)`
+TSTDIR=`(cd ../../test/svc99; echo $PWD)`
+xlc -c -I${INCDIR} -Wc,"${CFLAGS},LP64" ${TSTDIR}/svc99basic.c ${SRCDIR}/svc99c.c ${SRCDIR}/call31.c 
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+INCDIR=`(cd ../../src/maclib; echo $PWD)`
+for f in ../../src/call31a.s ../../src/svc99msg.s; do
+	obj=$(basename $f).o
+	as -o${obj} -I${INCDIR} "${ASMFLAGS},SYSPARM(AMODE64)" "${f}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		exit $rc
+	fi
+done
+
+xlc -Wl,"${LKFLAGS},LP64" -osvc99basic *.o

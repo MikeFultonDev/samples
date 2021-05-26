@@ -1,0 +1,31 @@
+         MACRO -- MSF64PRO -- 31-bit Linkage in 64-bit LE370 env
+&NAME    MSF64PRO &USRDSAL=0,                                          +
+               &BASEREG=3
+         LCLC  &UU
+&UU      SETC  '&SYSNDX'
+IHB&UU.DS DSECT
+         DS    D
+         DS    CL(&USRDSAL+128)
+IHB&UU.LG EQU   *-IHB&UU.DS-8
+&SYSECT  CSECT
+&NAME    XATTR REFERENCE(DATA)
+         USING *,15
+&NAME    B     SVRG&UU
+         DS    0D
+DSAL&UU  DC    AL4(IHB&UU.LG)        total DSA length
+SVRG&UU DS    0D
+         STM   14,12,12(13) .      save Caller's registers
+.*--------------------------------------------------------------
+         L     2,76(,13)           get current NAB
+         L     0,DSAL&UU           size of DSA
+         ALR   2,0                 old NAB + DSA size = new NAB
+         ST    2,76(,2)
+         ST    13,4(,2)            back chain DSA
+         LR    13,2                activate this DSA
+.*--------------------------------------------------------------
+         DROP  15
+.*--------------------------------------------------------------
+         BASR  &BASEREG,0
+         USING *,&BASEREG
+.*
+         MEND

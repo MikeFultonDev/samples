@@ -1,0 +1,20 @@
+         MACRO -- MSFSECT -- General Section Specification
+&NAME    MSFSECT
+&NAME    CSECT
+&NAME    AMODE 31
+&NAME    RMODE ANY
+.*
+.* Pull in the right macro based on the SYSPARM AMODE setting
+.*
+         AIF       ('&SYSPARM' EQ 'AMODE31').AMODE31
+         AIF       ('&SYSPARM' EQ 'AMODE64').AMODE64
+.ERROR   DS 0H   
+         MNOTE 8 'AMODE not specified in SYSPARM.'
+         MNOTE 8 '  AMODE must be AMODE31 or AMODE64'
+.AMODE64 DS 0H  
+&NAME    XATTR REFERENCE(DATA)
+         AGO       .MSFSECTE 
+.AMODE31 DS 0H
+.*
+.MSFSECTE DS 0H
+         MEND

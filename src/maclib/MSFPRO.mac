@@ -1,0 +1,18 @@
+         MACRO -- MSFPRO -- General Prolog for 31-bit & 64-bit linkage
+&NAME    MSFPRO &USR_DSAL=0,                                           +
+               &BASE_REG=12
+.*
+.* Pull in the right macro based on the SYSPARM AMODE setting
+.*
+         AIF       ('&SYSPARM' EQ 'AMODE31').AMODE31
+         AIF       ('&SYSPARM' EQ 'AMODE64').AMODE64
+.ERROR   DS 0H   
+         MNOTE 8 'AMODE not specified in SYSPARM.'
+         MNOTE 8 '  AMODE must be AMODE31 or AMODE64'
+.AMODE64 DS 0H
+&NAME    MSF64PRO USRDSAL=&USR_DSAL,BASEREG=&BASE_REG
+         AGO       .MSFPROE 
+.AMODE31 DS 0H
+&NAME    EDCPRLG USRDSAL=&USR_DSAL,BASEREG=&BASE_REG
+.MSFPROE DS 0H
+         MEND

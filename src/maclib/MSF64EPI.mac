@@ -1,0 +1,7 @@
+         MACRO -- MSF64EPI -- 31-bit Linkage in 64-bit LE/370 env
+         MSF64EPI  ,
+         L     13,4(,13)          address of caller's save area
+         L     14,12(,13)         restore R14
+         LM    2,12,28(13)        restore R2 - R12
+         BSM   0,14               return
+         MEND

@@ -1,5 +1,9 @@
 bin/readsysvar
 bin/Xsysvar
 bin/sysinfo
+bin/64/svc99basic
+bin/31/svc99basic
+bin/64/*.o
+bin/31/*.o
 src/*.o
 src/*.lst
