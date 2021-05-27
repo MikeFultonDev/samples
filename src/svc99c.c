@@ -14,15 +14,18 @@
 #include "svc99.h"
 #include "wrappers.h"
 
-static SVC99TextUnit_T* __ptr32 calloctextunit(SVC99TextUnit_T* inunit) {
-	/*
-	 * For now, assume the text unit is a basic text unit
-	 */
-	SVC99BasicTextUnit_T* tunit = (SVC99BasicTextUnit_T*) inunit;
-	SVC99TextUnit_T* __ptr32 outunit;
-	size_t tunitsize;
-	int i;
+static void* __ptr32 MALLOC31(size_t bytes) {
+	void* __ptr32 p = __malloc31(bytes);
+#if 0
+	memset(p, 0xFE, bytes);
+#endif
+	return p;
+}
 
+static size_t tusize(SVC99TextUnit_T* inunit) {
+	SVC99BasicTextUnit_T* tunit = (SVC99BasicTextUnit_T*) inunit;
+	size_t tunitsize;
+	size_t i;
 	switch (tunit->s99tukey) {
 		case DALBRTKN:
 			tunitsize = sizeof(SVC99BrowseTokenTextUnit_T); 
@@ -34,16 +37,38 @@ static SVC99TextUnit_T* __ptr32 calloctextunit(SVC99TextUnit_T* inunit) {
 			}
 			break;
 	}
-	outunit = __malloc31(tunitsize);
+	return tunitsize;
+}
+
+static SVC99TextUnit_T* __ptr32 calloctextunit(SVC99TextUnit_T* inunit) {
+	SVC99TextUnit_T* __ptr32 outunit;
+	int i;
+
+	size_t tunitsize;
+	tunitsize = tusize(inunit);
+	outunit = MALLOC31(tunitsize);
 	if (outunit) {
 		memcpy(outunit, inunit, tunitsize);
 	}
 	return outunit;
 }
 
+void dumpstg(FILE* stream, void* p, size_t len) {
+	char* buff = p;
+	size_t i;
+	for (i=0; i<len; ++i) { 
+		if (i % 4 == 0) {
+			fprintf(stream, " ");
+		}
+		fprintf(stream, "%2.2X", buff[i]);
+	}
+}
+
 void SVC99fmtdmp(FILE* stream, SVC99_T* __ptr32 parms) {
+	size_t tunitsize;
 	unsigned int* __ptr32 p;
 	unsigned int* __ptr32 pp;
+	SVC99TextUnit_T* wtu;
 	SVC99TextUnit_T* __ptr32 * __ptr32 textunit = parms->s99txtpp;
 	SVC99RBX_T* __ptr32 rbx = parms->s99s99x;
 	int i=0;
@@ -67,10 +92,12 @@ void SVC99fmtdmp(FILE* stream, SVC99_T* __ptr32 parms) {
 		fprintf(stream, "\n");
 	}
 	do {
-		p = (unsigned int* __ptr32) textunit[i];
 		pp = (unsigned int* __ptr32) &textunit[i];
-		fprintf(stream, "  textunit[%d] %X %8.8X %8.8X %8.8X %8.8X %8.8X %8.8X\n", i, *pp,  p[0], p[1], p[2], p[3], p[4], p[5]);
-		fprintf(stream, "                       %8.8X %8.8X %8.8X %8.8X %8.8X %8.8X\n",          p[6], p[7], p[8], p[9], p[10], p[11]);
+		wtu = (SVC99TextUnit_T*) textunit[i];
+		tunitsize = tusize(wtu);
+		fprintf(stream, "  textunit[%d] %X %3zu ", i, *pp, tunitsize);
+		dumpstg(stream, textunit[i], tunitsize);
+		fprintf(stream, "\n");
 		++i;
 	} while (((*pp) & 0x80000000) == 0);
 	return;
@@ -84,15 +111,15 @@ SVC99_T* __ptr32 SVC99init(SVC99Verb_T verb, SVC99Flag1_T flag1, SVC99Flag2_T fl
 	SVC99TextUnit_T* __ptr32 * __ptr32 textunit;
 	unsigned int* __ptr32 pp;
 
-	textunit = __malloc31(numtextunits * (sizeof(SVC99TextUnit_T* __ptr32)));
+	textunit = MALLOC31(numtextunits * (sizeof(SVC99TextUnit_T* __ptr32)));
 	if (!textunit) {
 		return 0;
 	}
-	rbxp = __malloc31(sizeof(SVC99RBX_T));
+	rbxp = MALLOC31(sizeof(SVC99RBX_T));
 	if (!rbxp) {
 		return 0;
 	} 
-	parms = __malloc31(sizeof(SVC99_T));
+	parms = MALLOC31(sizeof(SVC99_T));
 	if (!parms) {
 		return 0;
 	} 
@@ -149,7 +176,7 @@ int SVC99prtmsg(FILE* stream, SVC99_T* __ptr32 svc99parms, int svc99rc) {
 	EMParms_T* __ptr32 msgparms; 
 	int rc;
 
-	msgparms = __malloc31(sizeof(EMParms_T));
+	msgparms = MALLOC31(sizeof(EMParms_T));
 	if (!msgparms) {
 		return 16;
 	}

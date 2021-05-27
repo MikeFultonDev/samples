@@ -165,7 +165,6 @@
 		unsigned int s99ersn;
 	} SVC99RBX_T;
 
-
 	typedef struct {
 		unsigned char s99rbln;   /* length of request block-20*/
 		SVC99Verb_T s99verb;  
