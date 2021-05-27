@@ -5,20 +5,13 @@
 #define FAILLIB "SYS1.LINKLIB"
 #define PASSLIB "SYS1.MACLIB"
 
-#if 1
 #pragma noinline(alloc)
-#endif
-
 static int alloc(SVC99CommonTextUnit_T* dsn, SVC99CommonTextUnit_T* dd, SVC99CommonTextUnit_T* disp) {
 	SVC99_T* __ptr32 parms;
 	SVC99Verb_T verb = S99VRBAL;
 	SVC99Flag1_T s99flag1 = {0};
 	SVC99Flag2_T s99flag2 = {0};
-#if 0
-	SVC99RBX_T s99rbx = {"S99RBX",S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
-#else
 	SVC99RBX_T s99rbx = {{'S','9','9','R','B','X'},S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
-#endif
 	size_t numtextunits = 3;
 	int rc;
 
@@ -53,6 +46,7 @@ static int fail(void) {
 	return alloc(&dsn, &dd, &disp);
 }
 
+#pragma noinline(console)
 static int console(void) {
 	SVC99CommonTextUnit_T ddname = { DALDDNAM, 1, 7, {"DDSPOOL"}};
 	SVC99CommonTextUnit_T dsname = { DALDSNAM, 1, 18, {"S0W1.SYSLOG.SYSTEM"}};
