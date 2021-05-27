@@ -43,12 +43,58 @@ static int fail(void) {
 	return alloc(&dsn, &dd, &disp);
 }
 
+static int console(void) {
+	SVC99CommonTextUnit_T ddname = { DALDDNAM, 1, 5, {"SPOOL"}};
+	SVC99CommonTextUnit_T dsname = { DALDSNAM, 1, 18, {"S0W1.SYSLOG.SYSTEM"}};
+	SVC99CommonTextUnit_T dsstat = { DALSTATS, 1, 1, 0x8};
+	SVC99CommonTextUnit_T ssreq = { DALSSREQ, 1, 4, {"JES2"}};
+
+	/*
+	 * See: https://tech.mikefulton.ca/DALBRTKN
+	 */
+	SVC99BrowseTokenTextUnit_T brtkn = {
+		DALBRTKN, 7, BTOKIDLEN, "BTOK", 2, BTOKSTKN, BTOKVRNM, BTOKIOTPLEN, 0, BTOKJKEYLEN, 0, BTOKASIDLEN, BTOKACTBUF, BTOKRCIDLEN, {0}, 255, {0}
+	};
+
+	SVC99CommonTextUnit_T eropt = { DALEROPT, 1, 1, { DALEROPT_SKIP }};
+	SVC99_T* __ptr32 parms;
+	SVC99Verb_T verb = S99VRBAL;
+	SVC99Flag1_T s99flag1 = {0};
+	SVC99Flag2_T s99flag2 = {0};
+	SVC99RBX_T s99rbx = {"S99RBX",S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
+	size_t numtextunits = 6;
+	int rc;
+
+	printf("Allocate DD to Master Console %s - this should pass if you have authority (change S0W1 to your system name)\n", dsname.s99tupar);
+
+	parms = SVC99init(verb, s99flag1, s99flag2, &s99rbx, numtextunits, &dsstat, &ddname, &dsname, &ssreq, &brtkn, &eropt);
+	if (!parms) {
+		fprintf(stderr, "Internal Error: Unable to initialize SVC99 control blocks\n");
+		return 16;
+	}
+        rc = SVC99X(parms);
+	if (rc) {
+                SVC99fmtdmp(stderr, parms);
+		SVC99prtmsg(stderr, parms, rc);
+		return rc;
+	}
+
+        SVC99free(parms);
+	
+	return 0;
+}
+
 int main(int argc, char* argv[]) {
 	int rc;
 
 	rc = pass();
 	if (rc != 0) {
 		fprintf(stderr, "Unexpected failure allocating %s\n", PASSLIB);
+		return rc;
+	}
+	rc = console();
+	if (rc != 0) {
+		fprintf(stderr, "Unexpected failure allocating DD to master console\n");
 		return rc;
 	}
 	rc = fail();
