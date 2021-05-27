@@ -1,9 +1,11 @@
 #!/bin/sh
-set -x
+#set -x
 
 CFLAGS="DLL,LONGNAME,RENT,SSCOM,CSECT,FLAG(I),WARN64,LANGLVL(EXTENDED),SUPPRESS(CCN3764),GONUMBER,OPT(2)"
 ASMFLAGS="-mNOBATCH,GOFF,RENT,FLAG(0,ALIGN,CONT,NOIMPLEN,PUSH,RECORD,USING0,EXLITW)"
 LKFLAGS="DLL,DYNAM=DLL,CASE=MIXED,TERM"
+
+INITDIR=$PWD
 
 # Compile, assemble and link the 64-bit executable testcase
 mkdir -p ../bin/64
@@ -19,10 +21,10 @@ if [ $rc -gt 0 ]; then
 	exit $rc
 fi
 
-INCDIR=`(cd ../../src/maclib; echo $PWD)`
+MACDIR=`(cd ../../src/maclib; echo $PWD)`
 for f in ../../src/call31a.s ../../src/svc99msg.s; do
 	obj=$(basename $f).o
-	as -o${obj} -I${INCDIR} "${ASMFLAGS},SYSPARM(AMODE64)" "${f}"
+	as -o${obj} -I${MACDIR} "${ASMFLAGS},SYSPARM(AMODE64)" "${f}"
 	rc=$?
 	if [ $rc -gt 0 ]; then
 		exit $rc
@@ -30,3 +32,29 @@ for f in ../../src/call31a.s ../../src/svc99msg.s; do
 done
 
 xlc -Wl,"${LKFLAGS},LP64" -osvc99basic *.o
+
+cd ${INITDIR}
+# --- do it all again for 31-bit ---
+
+# Compile, assemble and link the 31-bit executable testcase
+mkdir -p ../bin/31
+cd ../bin/31
+rm -f *.o *.lst svc99basic
+
+xlc -c -I${INCDIR} -Wc,"${CFLAGS}" ${TSTDIR}/svc99basic.c ${SRCDIR}/svc99c.c ${SRCDIR}/call31.c 
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+INCDIR=`(cd ../../src/maclib; echo $PWD)`
+for f in ../../src/call31a.s ../../src/svc99msg.s; do
+	obj=$(basename $f).o
+	as -o${obj} -I${INCDIR} "${ASMFLAGS},SYSPARM(AMODE31)" "${f}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		exit $rc
+	fi
+done
+
+xlc -Wl,"${LKFLAGS}" -osvc99basic *.o

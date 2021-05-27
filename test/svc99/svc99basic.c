@@ -31,6 +31,7 @@ static int pass(void) {
 	SVC99CommonTextUnit_T dsn = { DALDSNAM, 1, sizeof(PASSLIB)-1, PASSLIB };
 	SVC99CommonTextUnit_T dd = { DALDDNAM, 1, 6, "DDPASS" };
 	SVC99CommonTextUnit_T stats = { DALSTATS, 1, 1, {0x8} };
+	printf("Allocate DD to %s - this should pass\n", PASSLIB);
 	return alloc(&dsn, &dd, &stats);
 }
 
@@ -38,6 +39,7 @@ static int fail(void) {
 	SVC99CommonTextUnit_T dsn = { DALDSNAM, 1, sizeof(FAILLIB)-1, FAILLIB };
 	SVC99CommonTextUnit_T dd = { DALDDNAM, 1, 3, "DDFAIL" };
 	SVC99CommonTextUnit_T disp = { DALNDISP, 1, 1, {0x8} };
+	printf("Allocate DD to %s - this should fail\n", FAILLIB);
 	return alloc(&dsn, &dd, &disp);
 }
 
