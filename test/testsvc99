@@ -1,4 +1,13 @@
 #!/bin/sh
+#********************************************************************
+# Copyright (c) 2021 IBM
+#
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+#*********************************************************************
 #set -x
 
 CFLAGS="DLL,LONGNAME,RENT,SSCOM,CSECT,FLAG(I),WARN64,LANGLVL(EXTENDED),SUPPRESS(CCN3764),GONUMBER,OPT(2)"
@@ -7,7 +16,9 @@ LKFLAGS="AC=1,EXTATTR=APF,DLL,DYNAM=DLL,CASE=MIXED,TERM"
 
 INITDIR=$PWD
 
-# Compile, assemble and link the 64-bit executable testcase
+#
+# Compile, assemble, link, run the 64-bit executable testcase
+#
 mkdir -p ../bin/64
 cd ../bin/64
 rm -f *.o *.lst svc99basic
@@ -22,8 +33,9 @@ if [ $rc -gt 0 ]; then
 fi
 
 MACDIR=`(cd ../../src/maclib; echo $PWD)`
-for f in ../../src/call31a.s ../../src/svc99msg.s; do
-	obj=$(basename $f).o
+for f in ${SRCDIR}/call31a.s ${SRCDIR}/svc99msg.s; do
+	obj=$(basename $f)
+	obj=${obj%%.*}.o 
 	as -o${obj} -I${MACDIR} "${ASMFLAGS},SYSPARM(AMODE64)" "${f}"
 	rc=$?
 	if [ $rc -gt 0 ]; then
@@ -32,9 +44,26 @@ for f in ../../src/call31a.s ../../src/svc99msg.s; do
 done
 
 xlc -Wl,"${LKFLAGS},LP64" -osvc99basic *.o
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+./svc99basic
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+echo "64-bit Test Passed"
+
+# Go back to starting directory
 
 cd ${INITDIR}
+
+#
 # --- do it all again for 31-bit ---
+#
 
 # Compile, assemble and link the 31-bit executable testcase
 mkdir -p ../bin/31
@@ -48,9 +77,10 @@ if [ $rc -gt 0 ]; then
 fi
 
 INCDIR=`(cd ../../src/maclib; echo $PWD)`
-for f in ../../src/call31a.s ../../src/svc99msg.s; do
-	obj=$(basename $f).o
-	as -o${obj} -I${INCDIR} "${ASMFLAGS},SYSPARM(AMODE31)" "${f}"
+for f in ${SRCDIR}/call31a.s ${SRCDIR}/svc99msg.s; do
+	obj=$(basename $f)
+	obj=${obj%%.*}.o
+	as -o${obj} -I${MACDIR} "${ASMFLAGS},SYSPARM(AMODE64)" "${f}"
 	rc=$?
 	if [ $rc -gt 0 ]; then
 		exit $rc
@@ -58,3 +88,15 @@ for f in ../../src/call31a.s ../../src/svc99msg.s; do
 done
 
 xlc -Wl,"${LKFLAGS}" -osvc99basic *.o
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+./svc99basic
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+echo "31-bit Test Passed"
