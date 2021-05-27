@@ -1,5 +1,5 @@
-#ifndef __SVC99__
-	#define __SVC99__ 1
+#ifndef __SVC99X__
+	#define __SVC99X__ 1
 	#include <stdlib.h>
 	#include <stdio.h>
 

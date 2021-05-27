@@ -11,6 +11,6 @@
 		#define SVC99MSG(parms)	call31asm("SVC99MSG", &SVC99MSG, 1, parms)
 	#else
 		#pragma linkage(SVC99MSG, OS)
-		int SVC99MSG(char* __ptr32 parms);
+		int SVC99MSG(void* __ptr32 parms);
 	#endif
 #endif  
