@@ -5,16 +5,19 @@
 #define FAILLIB "SYS1.LINKLIB"
 #define PASSLIB "SYS1.MACLIB"
 
+const SVC99RBX_T s99rbxtemplate = {"S99RBX",S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
+
 #pragma noinline(alloc)
 static int alloc(SVC99CommonTextUnit_T* dsn, SVC99CommonTextUnit_T* dd, SVC99CommonTextUnit_T* disp) {
 	SVC99_T* __ptr32 parms;
 	SVC99Verb_T verb = S99VRBAL;
 	SVC99Flag1_T s99flag1 = {0};
 	SVC99Flag2_T s99flag2 = {0};
-	SVC99RBX_T s99rbx = {{'S','9','9','R','B','X'},S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
 	size_t numtextunits = 3;
 	int rc;
+	SVC99RBX_T s99rbx = s99rbxtemplate;
 
+	if (s99rbx.s99eid[0] != 'S') { printf("oops\n"); }
 	parms = SVC99init(verb, s99flag1, s99flag2, &s99rbx, numtextunits, dsn, dd, disp );
 	if (!parms) {
 		fprintf(stderr, "Unable to initialize SVC99 control blocks\n");
@@ -40,7 +43,7 @@ static int pass(void) {
 
 static int fail(void) {
 	SVC99CommonTextUnit_T dsn = { DALDSNAM, 1, sizeof(FAILLIB)-1, FAILLIB };
-	SVC99CommonTextUnit_T dd = { DALDDNAM, 1, 3, "DDFAIL" };
+	SVC99CommonTextUnit_T dd = { DALDDNAM, 1, 6, "DDFAIL" };
 	SVC99CommonTextUnit_T disp = { DALNDISP, 1, 1, {0x8} };
 	printf("Allocate DD to %s - this should fail\n", FAILLIB);
 	return alloc(&dsn, &dd, &disp);
@@ -65,7 +68,7 @@ static int console(void) {
 	SVC99Verb_T verb = S99VRBAL;
 	SVC99Flag1_T s99flag1 = {0};
 	SVC99Flag2_T s99flag2 = {0};
-	SVC99RBX_T s99rbx = {"S99RBX",S99RBXVR,{0,1,0,0,0,0,0},0,0,0};
+	SVC99RBX_T s99rbx = s99rbxtemplate;
 	size_t numtextunits = 6;
 	int rc;
 

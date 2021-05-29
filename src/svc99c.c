@@ -31,9 +31,9 @@ static size_t tusize(SVC99TextUnit_T* inunit) {
 			tunitsize = sizeof(SVC99BrowseTokenTextUnit_T); 
 			break;
 		default:
-			tunitsize = sizeof(SVC99BasicTextUnit_T) + sizeof(unsigned short);
+			tunitsize = sizeof(SVC99BasicTextUnit_T);
 			for (i=0; i<tunit->s99tunum; ++i) {
-				tunitsize += tunit->entry[i].s99tulng;
+				tunitsize += (sizeof(unsigned short) + tunit->entry[i].s99tulng);
 			}
 			break;
 	}
