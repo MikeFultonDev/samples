@@ -106,6 +106,7 @@
 		unsigned short btokpl7;
 		unsigned char btoklsdl;
 		char btoklsda[254];
+		char rsrv;    
 	} SVC99BrowseTokenTextUnit_T;
 
 	typedef struct {
