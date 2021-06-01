@@ -1,0 +1,105 @@
+#!/bin/sh
+#
+# cics: start or stop a CICS server
+#
+# msf: ADCD system does not have DFHTEMP, DFHDMPA, DFHDMPB, DFHAUXT, DFHBUXT, DFHLRQ, DFHINTRA, DFHLCD, DFHGCD datasets as CICS${REGION} but just CICS
+# msf: ADCD system does not DFHDBFK dataset
+# msf: Had to:
+# alu ibmuser omvs(noassizemax)
+#-and-
+#alu ibmuser omvs(memlimit(16G))
+#
+#because CICS needs at least 6GB above the bar and the default ADCD configuration only provides 2GB
+#
+#set -x
+
+REGION=TS55
+
+CEE="${CEE_HLQ}.SCEERUN2:${CEE_HLQ}.SCEERUN"
+
+STEPLIB="--STEPLIB=${DFH_HLQ}.CICS.SDFHAUTH:${DFH_HLQ}.CPSM.SEYUAUTH:${CEE}:${DFH_HLQ}.CICS.SDFHLINK:${DFH_HLQ}.SDFHLIC"
+DFHRPL="--DFHRPL=${DFH_HLQ}.CICS.SDFHLOAD:${DFH_HLQ}.CPSM.SEYULOAD:${CEE_HLQ}.SCEECICS:${CEE}:${SEZ_HLQ}.SEZATCP"
+DFHCSD="--DFHCSD=${DFH_HLQ}.CICS.DFHCSD"
+DFHCMACD="--DFHCMACD=${DFH_HLQ}.DFHCMACD"
+DFHDBFK="--DFHDBFK=${DFH_HLQ}.CICS.DFHDBFK"
+
+DFHTEMP="--DFHTEMP=${DFH_HLQ}.CNTL.CICS${REGION}.DFHTEMP"
+DFHINTRA="--DFHINTRA=${DFH_HLQ}.CNTL.CICS${REGION}.DFHINTRA"
+DFHAUXT="--DFHAUXT=${DFH_HLQ}.CICS${REGION}.DFHAUXT"
+DFHBUXT="--DFHBUXT=${DFH_HLQ}.CICS${REGION}.DFHBUXT"
+DFHLCD="--DFHLCD=${DFH_HLQ}.CICS${REGION}.DFHLCD"
+DFHGCD="--DFHGCD=${DFH_HLQ}.CICS${REGION}.DFHGCD"
+DFHDMPA="--DFHDMPDA=${DFH_HLQ}.CICS${REGION}.DFHDMPA"
+DFHDMPB="--DFHDMPDB=${DFH_HLQ}.CICS${REGION}.DFHDMPB"
+DFHLRQ="--DFHLRQ=${DFH_HLQ}.CICS${REGION}.DFHLRQ"
+
+DFHCXRF="--DFHCXRF=*"
+LOGUSR="--LOGUSR=*"
+MSGUSR="--MSGUSR=*"
+TCPDATA="--TCPDATA=*"
+SYSTCPT="--SYSTCPT=*"
+SYSTCPD="--SYSTCPD=*"
+CEEMSG="--CEEMSG=*"
+CEEOUT="--CEEOUT=*"
+SYSPRINT="--SYSPRINT=*"
+PRINTER="--PRINTER=*"
+
+SYSABEND="--SYSABEND=*"
+
+SYSIN="
+TRTABSZ=64,
+APPLID=(CICS${REGION},CICS${REGION})      APPLID CICSTS55 IS DEFAULT
+AICONS=AUTO                               MVS CONSOLE SUPPORT
+AUXTR=OFF                                 TURN OFF AUX TRACE
+AUXTRSW=NEXT                              ROTATE TO NEXT WHEN FULL
+CICSSVC=216                               SVC NUMBER FOR CICS
+CPSMCONN=NO                               
+EDSALIM=100M                              FOR PR JVM
+DSALIM=7M                                
+FEPI=YES                                  START FEPI INTERFACE
+USSHOME=/usr/lpp/cicsts/cicsts55
+USSCONFIG=/usr/lpp/cicsts/cicsts55/dfhconfig
+GMTEXT='WELCOME TO CICS TS 5.5'
+GRPLIST=(XYZLIST)                         USE CICS LOGGER OFF
+GTFTR=ON                                  GTF TRACE ON
+IRCSTRT=NO                                DO NOT START IRC AUTOMATICALLY
+ISC=NO                                    DO NOT INCLUDE ISC/MRO
+KEYRING=CICSRNG                                                
+PLTPI=YES                                                     
+PLTSD=SD                                                     
+RLS=NO                                    NO RLS SUPPORT YET 
+GMTRAN=CESN                                                 
+SEC=YES                                                    
+XTRAN=NO                                                  
+XCMD=NO                                                  
+XDCT=NO                                                 
+XFCT=NO                                                
+XHFS=NO                                               
+XJCT=NO                                              
+XPPT=NO                                             
+XPCT=NO                                            
+XPSB=NO                                           
+XPTKT=NO                                         
+XRES=NO                                         
+SIT=6$                                    USE SUPPLIED SIT 6$ 
+STATRCD=OFF                               RECORDS STATISTICS TO SMF
+SYSIDNT=S720                              SYSIDNT IS S710
+SPCTRSO=(1,2)                             TRACE ON SOCKET DOMAIN
+SPCTRWB=(1,2)                             TRACE WEB INTERFACE 
+TCPIP=YES                                 FOR TCPIP & IIOP SERVICES
+FCT=NO,                                                           
+TCT=NO,                                                          
+SRT=1$,                                   ADD RECOVERY          
+PGRET=P/,                                                      
+PGPURGE=T/,                                                   
+PGCOPY=C/,                                                   
+PGCHAIN=X/,                                                 
+.END      
+"
+
+echo "${SYSIN}" | mvscmdauth --pgm=DFHSIP --args="START=INITIAL,SYSIN" --SYSIN=stdin \
+  "${STEPLIB}" "${DFHRPL}" "${DFHCSD}" "${DFHCMACD}" "${DFHDBFK}" "${DFHLRQ}" \
+  "${DFHTEMP}" "${DFHAUXT}" "${DFHBUXT}" "${DFHLCD}" "${DFHGCD}" "${DFHINTRA}" \
+  "${DFHCXRF}" "${LOGUSR}" "${MSGUSR}" "${TCPDATA}" "${SYSTCPT}" "${SYSTCPD}" "${CEEMSG}" "${CEEOUT}" \
+  "${DFHDMPA}" "${DFHDMPB}" "${SYSABEND}" "${SYSPRINT}" "${PRINTER}"  
+
