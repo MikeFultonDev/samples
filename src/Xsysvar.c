@@ -163,6 +163,7 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "      the list is by key, e.g. -l <key>\n");
 	fprintf(stderr, "      additional filters can be specified to restrict the listing\n");
  	fprintf(stderr, "      Each line is of the format:<sysplex>\t<system>\t<prod>\t<ver>\t<rel>\t<mod>\t<val>\t<comment>\n");
+ 	fprintf(stderr, "      If no filters or key is specified, all records will be listed\n");
 	fprintf(stderr, " Other options:\n");
 	fprintf(stderr, "  -C<comment>: Comment <comment> specified\n");
 	fprintf(stderr, "  -D<database-hlq>: use database (VSAM dataset) with prefix <database-hlq>. Default is %s\n", DEFAULT_VSAM_CLUSTER);
@@ -1083,8 +1084,58 @@ static int listEntriesByKey(const char** argv, Options_T* opt, VSAMField_T keyfi
 	return 0;
 }
 
+static int listAllEntries(const char** argv, Options_T* opt) {
+	FILE* fp;
+	int rc;
+	FixedHeader_T* hdr;
+	size_t reclen;
+	char buff[MAX_RECLEN];
+	const char* qual = KEY_QUAL;
+
+        fp = vsamopen(opt, opt->vsamCluster, qual, "rb,type=record");
+	if (!fp) {
+                return 16;
+	}
+	hdr = (FixedHeader_T*) buff;
+
+	do {
+		rc = vsamread(opt, hdr, MAX_RECLEN, fp);
+		if (rc == 0) {
+			if (!feof(fp)) {
+				fprintf(stderr, "Internal Error: Unable to read record after fopen/fread of %s successful\n", qual);
+				rc = 10;
+				break;
+			}
+		} else {
+			/*
+			 * Do not print the dummy NULL record
+			 */
+			if (hasKey(hdr)) {
+				rc = printfields(hdr);
+				if (rc <= 0) {
+					break;
+				}
+			}
+		}
+	} while (!feof(fp)); 
+        rc = vsamclose(opt, fp);
+	if (rc) {
+                return 12;
+	}
+        return 0;
+}
+
 static int listEntries(const char** argv, Options_T* opt) {
-	return listEntriesByKey(argv, opt, KeyField);
+	int rc;
+	timing(opt, Entry, "vsamread");
+	if (hasFilter(opt, KeyField)) {
+		rc = listEntriesByKey(argv, opt, KeyField);
+	} else {
+		rc = listAllEntries(argv, opt);
+	}
+	timing(opt, Exit, "vsamread");
+
+	return rc;
 }
 
 static int setKey(const char** argv, Options_T* opt) {
