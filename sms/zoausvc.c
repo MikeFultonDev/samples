@@ -188,7 +188,7 @@ int zoausvc(const char* input, char** output, char* opts[]) {
 	return rc;
 }
 
-char** concopts(char* pgm, char* coreopts[], char* usropts[]) {
+static char** concopts(char* pgm, char* coreopts[], char* usropts[]) {
 	char** opts;
 	int numcoreopts = 0;
 	int numusropts = 0;
