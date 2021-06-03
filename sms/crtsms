@@ -1,0 +1,590 @@
+#
+# Create an SMS environment 'from scratch'
+#
+
+setSMSEnvironment() {
+	echo "Set SMS Environment"
+
+	export HLQ_ROOT="SYS1.ZOSAAS.SMS"
+	export SCDS="${HLQ_ROOT}.SCDS"
+	export ACDS="${HLQ_ROOT}.ACDS"
+	export ACSLIB="${HLQ_ROOT}.ACSLIB"
+	export COMMDS="${HLQ_ROOT}.COMMDS"
+	export ISPTBL="${HLQ_ROOT}.ISPTABL"
+	export SYS="S0W1"
+	export SYSGRP="ZOSAAS1"
+	export CFGVOL="C2CFG1"
+	export USERVOL1="USER01"
+	export USERVOL2="USER02"
+	export TOOLSVOL1="TOOLS1"
+	export TOOLSVOL2="TOOLS2"
+
+	export ISMF_HLQ=SYS1
+	export ISPF_HLQ=ISP
+
+	export TOOLSGRP=ZAASSGT
+	export USERGRP=ZAASSGU	
+	export STOCLS=ZAASSC
+	export DATACLS=ZAASDC
+
+	export STORCLS_RULE="STORCLAS"
+	export STORGRP_RULE="STORGRP"
+	export DATACLS_RULE="DATACLAS"
+
+	export hlq=`hlq`
+	export rnd=${RANDOM}
+
+	whence mvscmd >/dev/null
+	if [[ $? -gt 0 ]] ; then
+		echo "crtsms.sh requires mvscmd to operate"
+		exit 16
+	fi
+	return 0
+}
+
+useOldSMSEnvironment() {
+	echo "Use Old SMS Environment"
+	opercmd 'setsms acds(sys1.s0w1.acds) scds(sys1.s0w1.scds)' >/dev/null 2>&1
+	opercmd 'setsms commds(sys1.s0w1.commds)' >/dev/null 2>&1
+}
+
+activateNewSMSEnvironment() {
+	opercmd 'setsms acds(sys1.zosaas.sms.acds) scds(sys1.zosaas.sms.scds)'
+	opercmd 'setsms commds(sys1.zosaas.sms.commds)'
+	opercmd 'd sms'
+	opercmd 'd sms,storgrp(all),listvol'
+}
+
+deleteSMSEnvironment() {
+	echo "Delete New SMS Environment"
+
+	delvsam ${SCDS}
+	delvsam ${ACDS}
+	delvsam ${COMMDS}
+	delvsam ${ACSLIB}
+	tsocmd "delete '${ISPTBL}" >/dev/null 2>&1
+
+	return 0
+}
+
+createTempDataset() {
+	export TEMP=`mvstmp`
+	tso "alloc da($TEMP) recfm(f,b) lrecl(80) blksize(3200) dsorg(ps) dsntype(basic) catalog tracks space(10,10)" >/dev/null 2>&1
+
+	# following line sends text from stdin to sed to strip trailing blanks and then redirects to a temporary HFS file
+	cat | sed 's/[ ]*$//' >/tmp/${TEMP}
+	cp /tmp/${TEMP} //${TEMP}
+	rm /tmp/${TEMP}
+	echo ${TEMP}
+}
+
+createPDSMember() {
+	export PDSMember=$1
+	export TEMP=`mvstmp`
+	cat >/tmp/${TEMP}
+	cp /tmp/${TEMP} "//${PDSMember}"
+	rm /tmp/${TEMP}
+	echo ${PDSMember}
+}
+
+deleteDataset() {
+	tsocmd "delete '$1'" >/dev/null 2>&1
+	return $?
+}
+
+createControlDataSets() {
+	echo "Create Control Data Sets (CDS)"
+	export DEFINE_CLUSTER_OUT=/tmp/$$.defineCluster.out
+	export DEFINE_ACSLIB_OUT=/tmp/$$.defineACSLib.out
+
+	mvscmdauth --pgm=idcams --sysin=stdin --sysprint=* >${DEFINE_CLUSTER_OUT} <<zzz
+ DEFINE CLUSTER(NAME(${SCDS}) LINEAR VOLUME(${CFGVOL})     -
+                TRK(36 36) SHAREOPTIONS(2,3))              -
+                DATA(NAME(${SCDS}.DATA))
+
+ DEFINE CLUSTER(NAME(${ACDS}) LINEAR VOLUME(${CFGVOL})     -
+                TRK(25 5) SHAREOPTIONS(3,3))               -
+                DATA(NAME(${ACDS}.DATA))
+
+ DEFINE CLUSTER(NAME(${COMMDS}) LINEAR VOLUME(${CFGVOL})   -
+                TRK(1 1) SHAREOPTIONS(3,3))                -
+                DATA(NAME(${COMMDS}.DATA))
+zzz
+
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to create Control Data Sets"
+		echo "See: ${DEFINE_CLUSTER_OUT} for details"
+		exit 16
+	fi
+	rm ${DEFINE_CLUSTER_OUT}
+
+	tso "alloc da('${ACSLIB}') recfm(f,b) lrecl(80) blksize(3200) dsorg(po) dsntype(library) catalog tracks space(25,25) vol(${CFGVOL})" >${DEFINE_ACSLIB_OUT} 2>&1
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to create ACS Library"
+		echo "See: ${DEFINE_ACSLIB_OUT} for details"
+		exit 16
+	fi
+	rm ${DEFINE_ACSLIB_OUT}
+	return 0
+}
+
+createISPFEnvironment() {
+	echo "Create ISPF Environment"
+	export ISPF_PROF="${hlq}.CRTSMS.ISPPROF.D${rnd}"
+	export TEMP_TABLE="${hlq}.CRTSMS.ISPTLIB.D${rnd}"
+
+	tso "alloc dsn('${ISPF_PROF}') recfm(f,b) lrecl(80) dsorg(po) dsntype(library) catalog tracks space(10,10)" >/dev/null 2>&1
+	tso "alloc dsn('${TEMP_TABLE}') recfm(f,b) lrecl(80) dsorg(po) dsntype(library) catalog tracks space(10,10)" >/dev/null 2>&1
+	tso "alloc dsn('${ISPTBL}') recfm(f,b) lrecl(80) dsorg(po) dsntype(library) catalog tracks space(10,10)" >/dev/null 2>&1
+
+	export STEPLIB=${ISMF_HLQ}.DGTLLIB:${ISPF_HLQ}.SISPLOAD
+	export ISPF_DDNAMES="--ispplib=${ISMF_HLQ}.DGTPLIB:${ISPF_HLQ}.SISPPENU --ispmlib=${ISMF_HLQ}.DGTMLIB:${ISPF_HLQ}.SISPMENU --ispslib=${ISPF_HLQ}.SISPSENU:${ISMF_HLQ}.DGTSLIB \
+	                     --isptlib=${TEMP_TABLE}:${ISPTBL}:${ISPF_HLQ}.SISPTENU:${ISMF_HLQ}.DGTTLIB --sysexec=${ISMF_HLQ}.DGTCLIB:${ISPF_HLQ}.SISPCLIB \
+	                     --isptabl=${ISPTBL} --sysprint=* --systsprt=* --isplog=dummy --ispprof=${ISPF_PROF}"
+	return 0
+}
+
+deleteISPFEnvironment() {
+	tsocmd "delete '${ISPF_PROF}'" >/dev/null 2>&1
+	tsocmd "delete '${TEMP_TABLE}'" >/dev/null 2>&1
+	return 0
+}
+
+# 	        ADDGRP(${SYSGRP}) +
+defineBaseConfiguration() {
+	echo "Define Base Configuration"
+	output="/tmp/${rnd}.out"
+
+	mvscmdauth --pgm=IKJEFT1B -v --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} <<zzz
+	  ISPSTART +
+	    CMD(ACBQBAB1 DEFINE +
+	        SCDS('${SCDS}') +
+	        DESCR(SMS z/OS as a Service Base Configuration) +
+	        DEFMC() +
+	        DEFUNIT() +
+	        BYTPTRK(56664) +
+	        TRKPCYL(15) +
+	        DSSEPPL() +
+	        ADDSYS(${SYS}) +
+	        UPDHLVLSCDS(Y) +
+	       ) +
+	    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(999999)
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define base configuration"
+		echo "See: ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+	return 0
+}
+
+defineStorageGroup() {
+	echo "Define Storage Groups"
+	export TEMP_FILE="${hlq}.CRTSMS.TEMP.D${rnd}"
+	output="/tmp/${rnd}.out"
+	tso "alloc dsn('${TEMP_FILE}') recfm(f) lrecl(300) blksize(300) dsorg(ps) dsntype(basic) catalog tracks space(10,10)" >/dev/null 2>&1
+	
+for group in ${TOOLSGRP} ${USERGRP}; do
+	mvscmdauth --pgm=IKJEFT1B --tempfile=${TEMP_FILE} --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} 2>&1 <<zzz
+	  ISPSTART +
+	    CMD(ACBQBAJ2 DEFINE +
+	        SCDS('${SCDS}') +
+	        STORGRP(${group}) +
+	        DESCR(SMS z/OS as a Service Storage Group) +
+	        AUTOMIG() +
+	        MIGSYSNM() +
+	        AUTOBKUP() +
+	        BKUPSYS() +
+	        AUTODUMP() +
+	        DMPSYSNM() +
+	        OVRFLOW() +
+	        EXTSGNM() +
+	        DUMPCLAS() +
+	        HIGHTHRS(85) +
+	        LOWTHRS(30) +
+	        GUARBKFR(NOLIMIT) +
+	        SGSTATUS() +
+	        UPDHLVLSCDS(Y) +
+	       )
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define storage group ${group} (stage 1)"
+		echo "See: ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+
+	mvscmdauth --pgm=IKJEFT1B --systsin=${TEMP_FILE} --sysudump=* ${ISPF_DDNAMES} >${output}
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define storage group (stage 2)"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+done
+
+tsocmd "delete '${TEMP_FILE}'"  >/dev/null 2>&1
+return 0
+}
+
+addVolumeToStorageGroup() {
+	echo "Add Volumes to Storage Group"
+
+	export TEMP_FILE="${hlq}.ADDVOL.TEMP.D${rnd}"
+	output="/tmp/${rnd}.out"
+	tso "alloc dsn('${TEMP_FILE}') recfm(f) lrecl(80) blksize(80) dsorg(ps) dsntype(basic) catalog tracks space(10,10)" >/dev/null 2>&1
+
+	export VOLADD=`createTempDataset <<zzz
+  UPDHLVLSCDS(Y)
+  SCDSNAME('${SCDS}') +
+    VOL(${TOOLSVOL1}) SG(${TOOLSGRP}) STATUS(ENABLE)
+  SCDSNAME('${SCDS}') +
+    VOL(${TOOLSVOL2}) SG(${TOOLSGRP}) STATUS(ENABLE)
+  SCDSNAME('${SCDS}') +
+    VOL(${USERVOL1}) SG(${USERGRP}) STATUS(ENABLE)
+  SCDSNAME('${SCDS}') +
+    VOL(${USERVOL2}) SG(${USERGRP}) STATUS(ENABLE)
+zzz`
+	export VOLALT=`createTempDataset <<zzz
+zzz`
+	export VOLDEL=`createTempDataset <<zzz
+zzz`
+
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* --tempfile=${TEMP_FILE} \
+	  --voladd=$hlq.${VOLADD} --volalt=$hlq.${VOLALT} --voldel=$hlq.${VOLDEL} ${ISPF_DDNAMES} >${output} <<zzz
+  ISPSTART +
+    CMD(ACBQBAI9) +
+    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define volumes to storage group ${STOGRP} (stage 1)"
+		echo "See ${output} for details"
+		exit 16
+	fi
+
+	#cat ${output}
+	rm ${output}
+	mvscmdauth --pgm=IKJEFT1B --systsin=${TEMP_FILE} --sysudump=* ${ISPF_DDNAMES} >${output}
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define storage group (stage 2)"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+
+	deleteDataset ${VOLADD}
+	deleteDataset ${VOLALT}
+	deleteDataset ${VOLDEL}
+	deleteDataset ${TEMP_FILE}
+	return 0
+}
+
+defineStorageClass() {
+	echo "Define Storage Class"
+
+	output="/tmp/${rnd}.out"
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} <<zzz
+  ISPSTART +
+    CMD(ACBQBAS1 DEFINE +
+        SCDS('${SCDS}') +
+        STCNAME(${STOCLS}) +
+        DESCR(SMS z/OS as a Service Storage Class) +
+        DMSRESP() +
+        DRTBIAS() +
+        SEQMSRES() +
+        SEQBIAS() +
+        INIARESS() +
+        SUSDTRT() +
+        AVALBTY() +
+        ACCSBTY(N) +
+        GURNTSPC() +
+        GUASYNWR() +
+        MULTITSG() +
+        CFCACSTN() +
+        CFDTWGHT() +
+        CFSEQWHT() +
+        UPDHLVLSCDS(Y) +
+        )
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define storage class"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+	return 0
+}
+
+defineDataClass() {
+	echo "Define Data Class"
+
+	export TEMP_FILE="${hlq}.DATACLAS.TEMP.D${rnd}"
+	output="/tmp/${rnd}.out"
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} <<zzz
+  ISPSTART +
+    CMD(ACBQBAD1 DEFINE +
+        SCDS('${SCDS}') +
+        DCNAME(${DATACLS}) +
+        DESCR(SMS z/OS as a Service Data Class) +
+        RECORG() +
+        RECFM() +
+        LRECL() +
+        KEYLEN() +
+        KEYOFF() +
+        SPCAVREC() +
+        SPCAVVAL() +
+        SPCPRM() +
+        SPCSEC() +
+        SPCDIR() +
+        REXPPDT() +
+        VOLCNT() +
+        ADDVOLAM() +
+        CISZDATA() +
+        FRSPCCI() +
+        FRSPCCA() +
+        SHRXREG() +
+        SHRXSYS() +
+        COMPTN() +
+        MDTYPE() +
+        RECTECH() +
+        DSNMTYP(EXT) +
+        IFEXT(R) +
+        EXTADDRS(Y) +
+        RECACCB(U) +
+        REUSE() +
+        INILOAD() +
+        SPANONSP() +
+        BWO() +
+        LOG() +
+        LOGSTID() +
+        SPCCONRL() +
+        REDSPCUT() +
+        MAXVOL() +
+        UPDHLVLSCDS(Y) +
+       ) +
+    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to define data class"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	#cat ${output}
+	rm ${output}
+	return 0
+}
+
+defineDataClassRules() {
+	export DS=`createPDSMember "'${ACSLIB}(${DATACLS_RULE})'" <<zzz
+PROC 1 DATACLAS                   /* DATACLASS START */
+  FILTLIST ALLSMS INCLUDE(IBMUSER*,TSTR*,TOOLS*)
+  SELECT
+    WHEN (&HLQ = &ALLSMS) DO
+      SET &DATACLAS = '${DATACLS}'
+    END
+    WHEN (&DATACLAS ^= '') DO
+      SET &DATACLAS = &DATACLAS
+    END
+    OTHERWISE SET &DATACLAS = ''
+  END
+END
+zzz`
+	echo "Data class rules: ${DS} created"
+	return 0
+}
+
+
+defineStorageClassRules() {
+	DS=`createPDSMember "'${ACSLIB}(${STORCLS_RULE})'" <<zzz
+PROC 1 STORCLAS                     /* STORCLASS START */
+  FILTLIST ALLSMS INCLUDE(IBMUSER*,TSTR*,TOOLS*)
+  SELECT
+    WHEN (&HLQ = &ALLSMS) DO
+      SET &STORCLAS = '${STOCLS}'
+    END
+    WHEN (&STORCLAS ^= '') DO
+      SET &STORCLAS = &STORCLAS
+    END
+    OTHERWISE SET &STORCLAS = ''
+  END
+END
+zzz`
+	echo "Storage class rules: ${DS} created"
+	return 0
+}
+
+defineStorageGroupRules() {
+	DS=`createPDSMember "'${ACSLIB}(${STORGRP_RULE})'" <<zzz
+PROC 1 STORGRP                       /* STORGRP START  */
+  FILTLIST TOOLS INCLUDE(TOOLS*)
+  FILTLIST USER INCLUDE(IBMUSER*,TSTR*)
+  SELECT
+    WHEN (&HLQ = &TOOLS) DO
+      SET &STORGRP = '${TOOLSGRP}'
+    END
+    WHEN (&HLQ = &USER) DO
+      SET &STORGRP = '${USERGRP}'
+    END    
+    WHEN (&STORGRP ^= '') DO
+      SET &STORGRP = &STORGRP
+    END
+    OTHERWISE SET &STORGRP = '${USERGRP}'
+  END
+END                                 /* STORGRP END    */
+zzz`
+	echo "Storage group rules: ${DS} created"
+	return 0
+}
+
+translateRule() {
+	rule=$1
+	echo "Translate rule: ${rule}"
+	output="/tmp/${rnd}.out"
+	TEMP=`mvstmp`
+	QTEMP="'${hlq}.${TEMP}'"
+	tso "alloc da($QTEMP) recfm(f,b,a) lrecl(133) blksize(2660) dsorg(ps) dsntype(basic) catalog tracks space(10,10)" 2>/dev/null
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} <<zzz
+  ISPSTART +
+    CMD(ACBQBAO1 +
+        ACSSRC('${ACSLIB}') +
+        MEMBER(${rule}) +
+        SCDSNAME('${SCDS}') +
+        LISTNAME(${QTEMP}) +
+        UPDHLVLSCDS(Y) +
+    ) +
+    NEWAPPL(DGT) +
+    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to translate rule file: ${rule}"
+		echo "See ${QTEMP} and ${output} for details"
+		exit 16
+	fi
+	cat ${output}
+	cat "//${QTEMP}"
+	deleteDataset ${QTEMP}
+	rm ${output}
+	return 0
+}
+
+translateRules() {
+	translateRule ${STORCLS_RULE}
+	translateRule ${STORGRP_RULE}
+	translateRule ${DATACLS_RULE}
+
+	return 0
+}
+
+validateConfiguration() {
+	echo "Validate Configuration"
+	output="/tmp/${rnd}.out"
+	TEMP=`mvstmp`
+	QTEMP="'${hlq}.${TEMP}'"
+	tso "alloc da($QTEMP) recfm(f,b,a) lrecl(133) dsorg(ps) dsntype(basic) catalog tracks space(10,10)" 2>/dev/null
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES} >${output} <<zzz
+  ISPSTART +
+    CMD(ACBQBAO2 +
+        SCDSNAME('${SCDS}') +
+        TYPE(*) +
+        LISTNAME(${QTEMP}) +
+        UPDHLVLSCDS(Y) +
+       ) +
+    NEWAPPL(DGT) +
+    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)
+zzz
+	cat "//${QTEMP}"
+	#cat ${output}
+	return 0
+}
+
+displayConfiguration() {
+	echo "Display Configuration"
+
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES}  <<zzz
+  ISPSTART +
+    CMD(ACBQBAB1 DISPLAY +
+        SCDS('${SCDS}') +
+       ) +
+    BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(999999)
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to display configuration"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	return 0
+}
+
+displayStorageClass() {
+	echo "Display Storage Class"
+
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES}  <<zzz
+  ISPSTART +
+    CMD(ACBQBAS1 DISPLAY +
+        SCDS('${SCDS}') +
+        STCNAME(${STOCLS}) +
+       )
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to display storage class"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	return 0
+}
+
+displayDataClass() {
+	echo "Display Data Class"
+
+	mvscmdauth --pgm=IKJEFT1B --systsin=stdin --sysudump=* ${ISPF_DDNAMES}  <<zzz
+  ISPSTART +
+    CMD(ACBQBAD1 DISPLAY +
+        SCDS('${SCDS}') +
+        DCNAME(${DATACLS}) +
+       )
+zzz
+	if [[ $? -gt 0 ]] ; then
+		echo "Unable to display data class"
+		echo "See ${output} for details"
+		exit 16
+	fi
+	return 0
+}
+
+main() {
+	setSMSEnvironment
+
+	useOldSMSEnvironment
+	deleteSMSEnvironment
+	createControlDataSets
+	createISPFEnvironment
+	defineBaseConfiguration
+	defineStorageGroup
+	addVolumeToStorageGroup
+	defineStorageClass
+	defineDataClass
+
+	defineStorageClassRules
+	defineDataClassRules
+	defineStorageGroupRules
+	translateRules
+	validateConfiguration
+
+	displayConfiguration
+	displayStorageClass
+	displayDataClass
+
+	activateNewSMSEnvironment
+
+	deleteISPFEnvironment
+
+}
+
+main
+
