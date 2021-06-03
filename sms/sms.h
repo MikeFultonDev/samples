@@ -22,4 +22,5 @@
 	} SMS;
 
 	SMS* crtSMS(SMSProgram prog, int argc, char* argv[]);
+	int batchsms(const char* input, char** output, char* opts[]);
 #endif
