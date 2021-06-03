@@ -155,9 +155,10 @@ static int syntax(const char* prog) {
 	fprintf(stderr, "  -X<sysplex>: Sysplex <sysplex> specific\n");
 	fprintf(stderr, "  -S<system>: System <system> specific\n");
 	fprintf(stderr, "  -P<prod>: Product <prod> specific\n");
-	fprintf(stderr, "  -V<ver>: Version <ver> of product <prod> specific. Requires -P to be specified\n");
-	fprintf(stderr, "  -R<rel>: Release <rel> of product <prod> specific. Requires -P to be specified\n");
-	fprintf(stderr, "  -M<mod>: Modification <mod> of product <prod> specific. Requires -P to be specified\n");
+	fprintf(stderr, "  -G<group>: -G is a synonym for -P\n");
+	fprintf(stderr, "  -V<ver>: Version <ver> of product <prod> specific. Requires -P or -G to be specified\n");
+	fprintf(stderr, "  -R<rel>: Release <rel> of product <prod> specific. Requires -P or -G to be specified\n");
+	fprintf(stderr, "  -M<mod>: Modification <mod> of product <prod> specific. Requires -P or -G to be specified\n");
 	fprintf(stderr, " Listing multiple keys by filter:\n");
 	fprintf(stderr, "  -l: list the filters, key, and value that match the filter request\n");
 	fprintf(stderr, "      the list is by key, e.g. -l <key>\n");
@@ -288,6 +289,7 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 					rc = setField(opt, argv, i, 2, ModField);
 					break;
 				case 'P':
+				case 'G':
 					rc = setField(opt, argv, i, 2, ProdIDField);
 					break;
 				case 'D':
@@ -342,7 +344,7 @@ static int processArgs(int argc, const char** argv, Options_T* opt) {
 
 	if (!hasFilter(opt, ProdIDField)) {
 		if (hasFilter(opt, VerField) || hasFilter(opt, RelField) || hasFilter(opt, ModField)) {
-			fprintf(stderr, "-V, -R, and -M can only be specified if -P is specified\n");
+			fprintf(stderr, "-V, -R, and -M can only be specified if -P or -G is specified\n");
 			return 8;
 		}
 	}
