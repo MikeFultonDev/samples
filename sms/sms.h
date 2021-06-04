@@ -13,7 +13,11 @@
 	typedef enum {
 		SMSNoErr=0,
 		SMSOptErr=1,
-		SMSSyntax=2
+		SMSSyntax=2,
+		SMSSetupErr=3,
+		SMSAllocErr=4,
+		SMSPropertyErr=5,
+		SMSEnvVarNotSet=6
 	} SMSError;
 
 	typedef enum {
@@ -24,7 +28,7 @@
 
 	typedef enum {
 		SMSTMPHLQ=0,
-		SMSISPHLQ=1,
+		SMSISPFHLQ=1,
 		SMSISMFHLQ=2,	
 		SMSNumProps=3
 	} SMSProps;  

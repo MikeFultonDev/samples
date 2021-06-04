@@ -7,9 +7,13 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
-#include "sms.h"
 #define _XOPEN_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
+#include "sms.h"
+#include "zoausvc.h"
+
+#define MAXDSLEN 44
 
 static const char* pgmname(SMS* sms) {
 	switch (sms->prog) {
@@ -38,7 +42,7 @@ static int errmsg(SMSError err, ...) {
 	return err;
 }
 
-static int parsearg(struct SMS* sms, const char* validopts) {
+static int parsearg(SMS* sms, const char* validopts) {
 	int opt;
 	opterr = 0; 
 	while ((opt = getopt(sms->argc, sms->argv, "cdhlr")) != -1) {
@@ -73,6 +77,15 @@ static int parsearg(struct SMS* sms, const char* validopts) {
 	sms->opts.extraarg = optind;
 	return SMSNoErr;
 }
+
+static batchismf(SMS* sms, char* input, char** output) {
+	char* tempISPFProfile;
+	char* mvstmpopts[] = { sms->opts.prop.val[SMSTMPHLQ], NULL };
+	int rc;
+
+	rc = mvstmp(NULL, &tempISPFProfile, mvstmpopts);
+	rc = dtouch(tempISPFProfile);	
+}
 				
 static int genprterr(struct SMS* sms) { 
 	fprintf(stderr, "Invalid parameters passed to: %s argc:%d\n", pgmname(sms), sms->argc); 
@@ -95,7 +108,22 @@ static int sgparse(struct SMS* sms) {
 	return parsearg(sms, "cdhlr");
 }
 static int sgrunsvc(struct SMS* sms) { 
-	return 0; 
+	if (sms->opts.list) {
+		char* output;
+		int rc;
+		rc = batchismf(sms, "SCDS(ACTIVE) STORGRP(FRED)", &output);	
+		if (rc == 0) {
+			fprintf(stdout, "<%s>\n", output);
+		} else {
+			fprintf(stderr, "Error running batchismf:%d\n", rc);
+		}
+		if (output) {
+			free(output);
+		}
+	} else {
+		fprintf(stderr, "Only list implemented so far\n");
+	}
+	return 0;
 }
 static int scparse(struct SMS* sms) { 
 	return parsearg(sms, "cdhlr");
@@ -108,8 +136,90 @@ static SMS invSMS = { invparse, invrunsvc, geninerr, genprterr, genrc };
 static SMS sgSMS  = { sgparse,  sgrunsvc,  geninerr, genprterr, genrc };
 static SMS scSMS  = { scparse,  scrunsvc,  geninerr, genprterr, genrc };
 
-static int setupBaseEnv(SMSOpts* opt) {
+static SMSError getenvifset(const char* env, char** val) {
+	char* envval = getenv(env);  
+	size_t vallen;
+	if (!envval) {
+		return SMSEnvVarNotSet;
+	}
 
+	vallen = strlen(envval);
+	*val = malloc(vallen+1);
+	if (*val) {
+		memcpy(*val, envval, vallen+1);
+		return SMSNoErr;
+	}
+
+	errmsg(SMSAllocErr);
+	return SMSAllocErr;
+}
+
+static int getproperty(const char* key, char** val) {
+	int rc;
+	size_t vallen;
+	const char* xsysvaropts[] = { key, NULL };
+	SMSError enverr;
+
+	enverr = getenvifset(key, val);
+	if (enverr != SMSEnvVarNotSet) {
+		return enverr;
+	}
+
+	rc = xsysvar(val, xsysvaropts);
+	if (rc) {
+		return SMSPropertyErr;
+	}
+
+	return SMSNoErr;
+}
+
+static int tmphlq(char** val) {
+	const char* TMP_HLQ = "TMPHLQ";
+	SMSError enverr;
+	const char* hlqopts[] = { NULL };
+	int rc;
+
+	enverr = getenvifset(TMP_HLQ, val);
+	if (enverr != SMSEnvVarNotSet) {
+		return enverr;
+	}
+	rc = hlq(val, hlqopts);
+
+	if (rc) {
+		return SMSPropertyErr;
+	}
+
+	return SMSNoErr;
+}
+
+static int setupBaseEnv(SMS* sms) {
+	int rc;
+	char* value;
+	const char* ISPF_HLQ = "HIF7R02_HLQ";
+	const char* ISMF_HLQ = "EDU1H01_HLQ";
+
+	rc = tmphlq(&value);
+	if (rc) {
+		errmsg(SMSSetupErr, "tmphlq", rc);
+		return SMSSetupErr;
+	}
+	sms->opts.prop.val[SMSTMPHLQ] = value;
+
+	rc = getproperty(ISPF_HLQ, &value);
+	if (rc) {
+		errmsg(SMSPropertyErr, ISPF_HLQ, rc);
+		return SMSPropertyErr;
+	}
+	sms->opts.prop.val[SMSISPFHLQ] = value;
+
+	rc = getproperty(ISMF_HLQ, &value);
+	if (rc) {
+		errmsg(SMSPropertyErr, ISMF_HLQ, rc);
+		return SMSPropertyErr;
+	}
+	sms->opts.prop.val[SMSISMFHLQ] = value;
+
+	return SMSNoErr;
 }
 
 SMS* crtSMS(SMSProgram prog, int argc, char* argv[]) {
@@ -128,7 +238,11 @@ SMS* crtSMS(SMSProgram prog, int argc, char* argv[]) {
 	sms->prog = prog;
 	sms->argc = argc;
 	sms->argv = argv;
-	sms->err  = sms->parsearg(sms);
+
+	sms->err = setupBaseEnv(sms);
+	if (!sms->inerr(sms)) {
+		sms->err = sms->parsearg(sms);
+	}
 
 	return sms;
 }

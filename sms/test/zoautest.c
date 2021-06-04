@@ -15,14 +15,19 @@ int main(int argc, char* argv[]) {
 	int rc;
 	char* input = "LISTALC";
 	char* output;
-	char* smsopts[] = { NULL }; 
-	char* xsysvaropts[] = { "Color=Black", NULL };
-	rc = batchsms(input, &output, smsopts);
+	const char* smsopts[] = { NULL }; 
+	const char* xsysvaropts[] = { "Color=Black", NULL };
+	const char* hlqopts[] = { NULL };
+	rc = batchtso(input, &output, smsopts);
 
-	puts(output);
+	printf("<%s>\n", output);
 	free(output);
 
 	rc = xsysvar(&output, xsysvaropts);
+	puts(output);
+	free(output);
+
+	rc = hlq(&output, hlqopts);
 	puts(output);
 	free(output);
 }

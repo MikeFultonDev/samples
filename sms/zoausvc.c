@@ -7,7 +7,6 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
-#include "sms.h"
 #define _OPEN_SYS_UNLOCKED_EXT 1
 #define _XOPEN_SOURCE 1
 
@@ -26,6 +25,9 @@
 #include<stdlib.h>
 #include<string.h>
 #include<stdio.h>
+
+#include "zoausvc.h"
+#include "sms.h"
 
 #define PRTMSG(num, pgm) fprintf(stderr, zoausvcmsg[num], pgm)
 #define CHKEXP0(exp, num, pgm) { if (exp) { fprintf(stderr, zoausvcmsg[num], pgm); return zoausvcerr[num]; } }
@@ -94,7 +96,7 @@ int zoausvc(const char* input, char** output, char* opts[]) {
 	int inlen;
 	int outlen;
 	int i=0;
-	const char* pgm = opts[0];
+	char* pgm = opts[0];
 	int arglistsize;
 	int numopts = 0;
 
@@ -197,7 +199,7 @@ int zoausvc(const char* input, char** output, char* opts[]) {
 	return rc;
 }
 
-static char** concopts(char* pgm, char* coreopts[], char* usropts[]) {
+static char** concopts(const char* pgm, const char* coreopts[], const char* usropts[]) {
 	char** opts;
 	int numcoreopts = 0;
 	int numusropts = 0;
@@ -210,15 +212,17 @@ static char** concopts(char* pgm, char* coreopts[], char* usropts[]) {
 	opts = malloc(argsize);
 	CHKEXP1NULL((opts == NULL), mallocerr, pgm, argsize);
 	memcpy(opts, coreopts, numcoreopts*(sizeof(const char**)));
-	memcpy(&opts[numcoreopts], usropts, numusropts*(sizeof(const char**)));
+	if (numusropts > 0) {
+		memcpy(&opts[numcoreopts], usropts, numusropts*(sizeof(const char**)));
+	}
 
 	return opts;
 }
 
-int batchsms(const char* input, char** output, char* usropts[]) {
+int batchtso(const char* input, char** output, const char* usropts[]) {
 	int rc;
 	char** opts;
-	char* coreopts[] = {
+	const char* coreopts[] = {
 		"mvscmdauth",
 		"--pgm=IKJEFT1B",
 		"--systsin=stdin",
@@ -233,10 +237,26 @@ int batchsms(const char* input, char** output, char* usropts[]) {
 	return rc;
 }
 
-int xsysvar(char **output, char* usropts[]) {
+int xsysvar(char **output, const char* usropts[]) {
 	int rc;
 	char** opts;
-	char* coreopts[] = { "Xsysvar", NULL };
+	const char* coreopts[] = { "Xsysvar", NULL };
+	char* input = "";
+
+	opts = concopts(coreopts[0], coreopts, usropts);
+	rc = zoausvc(input, output, opts);
+	free(opts);
+	if (rc == 0) {
+		size_t outlen = strlen(*output);
+		(*output)[outlen-1] = '\0'; /* remove newline */
+	}
+	return rc;
+}
+
+int hlq(char **output, const char* usropts[]) {
+	int rc;
+	char** opts;
+	const char* coreopts[] = { "hlq", NULL };
 	char* input = "";
 
 	opts = concopts(coreopts[0], coreopts, usropts);
@@ -244,4 +264,3 @@ int xsysvar(char **output, char* usropts[]) {
 	free(opts);
 	return rc;
 }
-
