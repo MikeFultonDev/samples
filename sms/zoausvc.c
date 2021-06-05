@@ -199,7 +199,7 @@ int zoausvc(const char* input, char** output, char* opts[]) {
 	return rc;
 }
 
-static char** concopts(const char* pgm, const char* coreopts[], const char* usropts[]) {
+char** concopts(const char* pgm, const char* coreopts[], const char* usropts[]) {
 	char** opts;
 	int numcoreopts = 0;
 	int numusropts = 0;
@@ -232,7 +232,7 @@ static void trimnl(int rc, char** output) {
 }
 
 int batchtso(const char* input, char** output, const char* usropts[]) {
-	int rc;
+	int rc, i;
 	char** opts;
 	const char* coreopts[] = {
 		"mvscmdauth",

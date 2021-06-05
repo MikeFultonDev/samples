@@ -10,6 +10,7 @@
 #ifndef __ZOAUSVC__
 	#define __ZOAUSVC__ 1
 
+	char** concopts(const char* pgm, const char* coreopts[], const char* usropts[]);
 	int batchtso(const char* input, char** output, const char* usropts[]);
 	int xsysvar(char **output, const char* usropts[]);
 	int hlq(char **output, const char* usropts[]);

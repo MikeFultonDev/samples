@@ -78,16 +78,46 @@ static int parsearg(SMS* sms, const char* validopts) {
 	return SMSNoErr;
 }
 
-static int createTempPDSE(SMS* sms, char** name) {
+static int cidneTempSeq(SMS* sms, char** name) { /* cidne -> Create If Does Not Exist */
 	const char* mvstmpopts[] = { sms->opts.prop.val[SMSTMPHLQ], NULL };
-	const char* dtouchopts[] = { NULL, NULL };
+	const char* dtouchopts[] = { "-tseq", "-l80", "-rfb", NULL, NULL };
 	char* out;
 	int rc;
+
+	if (*name) { return SMSNoErr; }
 
 	rc = mvstmp(name, mvstmpopts);
 	if (rc) {
 		if (*name) {
 			free(*name);
+			*name = NULL;
+		}
+		return SMSISMFErr;
+	}
+	dtouchopts[3] = *name;
+	rc = dtouch(&out, dtouchopts);	
+	if (rc) {
+		if (out) {
+			free(out);
+		}
+		return SMSISMFErr;
+	}
+	return SMSNoErr;
+}
+
+static int cidneTempPDSE(SMS* sms, char** name) { /* cidne -> Create If Does Not Exist */
+	const char* mvstmpopts[] = { sms->opts.prop.val[SMSTMPHLQ], NULL };
+	const char* dtouchopts[] = { NULL, NULL };
+	char* out;
+	int rc;
+
+	if (*name) { return SMSNoErr; }
+
+	rc = mvstmp(name, mvstmpopts);
+	if (rc) {
+		if (*name) {
+			free(*name);
+			*name = NULL;
 		}
 		return SMSISMFErr;
 	}
@@ -99,6 +129,34 @@ static int createTempPDSE(SMS* sms, char** name) {
 		}
 		return SMSISMFErr;
 	}
+	return SMSNoErr;
+}
+
+static int writeText(SMS* sms, const char* file, const char* text) {
+	char qualfile[54+4+1];
+	FILE* fp; 
+	int rc;
+
+	if (file[0] == '/') {
+		strcpy(qualfile, file);
+	} else {
+		sprintf(qualfile, "//'%s'", file);
+	}
+	fp = fopen(qualfile, "a");
+	if (!fp) {
+		perror("fopen error on file");         
+		return SMSISMFErr;          
+	}
+	rc = fwrite(text, 1, strlen(text), fp);
+	if (rc != strlen(text)) {
+		perror("fwrite error on file");         
+		return SMSISMFErr;
+	}	
+	rc = fclose(fp);
+	if (rc) {
+		perror("fclose error on file");         
+		return SMSISMFErr;
+	}	
 	return SMSNoErr;
 }
 
@@ -115,19 +173,21 @@ enum {
 	ISPF_NUM_DD=9
 };
 
-static int batchismf(SMS* sms, const char* input, char** output) {
+static int batchismf(SMS* sms, const char* input, char** output, const char* usropts[]) {
 	SMSError err;
 	char dd[ISPF_NUM_DD][2+8+1+(4*(44+1))+1];  /* --<dd>=<dsn1>:<dsn2>:<dsn3>:<dsn4><null> */
 	const char* ddp[ISPF_NUM_DD+1];
 	const char* ispfhlq = sms->opts.prop.val[SMSISPFHLQ];
 	const char* ismfhlq = sms->opts.prop.val[SMSISMFHLQ];
+	char** batchtsoopts;
 	int i;
+	int rc;
 
-	err = createTempPDSE(sms, &sms->opts.tmpProfile);
+	err = cidneTempPDSE(sms, &sms->opts.tmpProfile);
 	if (err != SMSNoErr) { return err; }
-	err = createTempPDSE(sms, &sms->opts.tmpInputTable);
+	err = cidneTempPDSE(sms, &sms->opts.tmpInputTable);
 	if (err != SMSNoErr) { return err; }
-	err = createTempPDSE(sms, &sms->opts.tmpOutputTable);
+	err = cidneTempPDSE(sms, &sms->opts.tmpOutputTable);
 	if (err != SMSNoErr) { return err; }
 
 	sprintf(dd[ISPF_STEPLIBDD], "--STEPLIB=%s.DGTLLIB:%s.SISPLOAD", ismfhlq, ispfhlq);
@@ -145,8 +205,13 @@ static int batchismf(SMS* sms, const char* input, char** output) {
 		ddp[i] = dd[i];
 	}
 	ddp[ISPF_NUM_DD] = NULL;
-
-	return batchtso(input, output, ddp);
+	batchtsoopts = concopts("batchismf", ddp, usropts);
+	if (!batchtsoopts) {
+		return SMSAllocErr;
+	}
+	rc = batchtso(input, output, (const char**) batchtsoopts);
+	free(batchtsoopts);
+	return rc;
 }
 				
 static int genprterr(struct SMS* sms) { 
@@ -171,13 +236,47 @@ static int sgparse(struct SMS* sms) {
 }
 static int sgrunsvc(struct SMS* sms) { 
 	if (sms->opts.list) {
+		const char* genopts[] = { NULL };
+		const char* rptopts[] = { NULL, NULL, NULL };
+		SMSError err;
 		char* output;
+		char* input;
+		char rptdd[80];
+		char* tmpseq=NULL;
 		int rc;
-		rc = batchismf(sms, "SCDS(ACTIVE) STORGRP(FRED)", &output);	
+		input="\
+ISPSTART CMD(ACBQBAIG SAVE SGNAMES + \n\
+SCDS('SYS1.S0W1.SCDS') STORGRP(*) STGTYPE(POOL) SPACEGB(N))+ \n\
+NEWAPPL(DGT) BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)";
+
+		rc = batchismf(sms, input, &output, genopts);	
 		if (rc == 0) {
-			fprintf(stdout, "SCDS results: <%s>\n", output);
+#if DEBUG
+			fprintf(stdout, "Table Generation Results: <%s>\n", output);
+#endif
 		} else {
 			fprintf(stderr, "Error running batchismf:%d\n", rc);
+			fprintf(stderr, "%s", output);
+		}
+		if (output) {
+			free(output);
+		}
+		input="\
+ISPSTART CMD(ACBQBARJ SGNAMES) +\n\
+BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)";
+		err = cidneTempSeq(sms, &tmpseq); 
+		if (err) { fprintf(stderr, "failure creating temporary sequential dataset\n"); return err; }
+		err = writeText(sms, tmpseq, "STORGRP SGTYPE TOTALSPC FREESPC");
+		if (err) { fprintf(stderr, "failure writing to temporary sequential dataset\n"); }
+		sprintf(rptdd, "--SYSIN=%s", tmpseq);
+		rptopts[0] = "--ISPFILE=stdout";
+		rptopts[1] = rptdd;
+		rc = batchismf(sms, input, &output, rptopts);	
+		if (rc == 0) {
+			puts(output);
+		} else {
+			fprintf(stderr, "Error running batchismf:%d\n", rc);
+			fprintf(stderr, "%s", output);
 		}
 		if (output) {
 			free(output);
@@ -185,8 +284,9 @@ static int sgrunsvc(struct SMS* sms) {
 	} else {
 		fprintf(stderr, "Only list implemented so far\n");
 	}
-	return 0;
+	return SMSNoErr;
 }
+
 static int scparse(struct SMS* sms) { 
 	return parsearg(sms, "cdhlr");
 }
