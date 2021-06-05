@@ -78,13 +78,75 @@ static int parsearg(SMS* sms, const char* validopts) {
 	return SMSNoErr;
 }
 
-static batchismf(SMS* sms, char* input, char** output) {
-	char* tempISPFProfile;
-	char* mvstmpopts[] = { sms->opts.prop.val[SMSTMPHLQ], NULL };
+static int createTempPDSE(SMS* sms, char** name) {
+	const char* mvstmpopts[] = { sms->opts.prop.val[SMSTMPHLQ], NULL };
+	const char* dtouchopts[] = { NULL, NULL };
+	char* out;
 	int rc;
 
-	rc = mvstmp(NULL, &tempISPFProfile, mvstmpopts);
-	rc = dtouch(tempISPFProfile);	
+	rc = mvstmp(name, mvstmpopts);
+	if (rc) {
+		if (*name) {
+			free(*name);
+		}
+		return SMSISMFErr;
+	}
+	dtouchopts[0] = *name;
+	rc = dtouch(&out, dtouchopts);	
+	if (rc) {
+		if (out) {
+			free(out);
+		}
+		return SMSISMFErr;
+	}
+	return SMSNoErr;
+}
+
+enum { 
+	ISPF_STEPLIBDD=0,
+	ISPF_ISPPLIBDD=1,
+	ISPF_ISPMLIBDD=2,
+	ISPF_ISPSLIBDD=3,
+	ISPF_SYSEXECDD=4,
+	ISPF_ISPLOGDD=5,
+	ISPF_ISPTLIBDD=6,
+	ISPF_ISPTABLDD=7,
+	ISPF_ISPPROFDD=8,
+	ISPF_NUM_DD=9
+};
+
+static int batchismf(SMS* sms, const char* input, char** output) {
+	SMSError err;
+	char dd[ISPF_NUM_DD][2+8+1+(4*(44+1))+1];  /* --<dd>=<dsn1>:<dsn2>:<dsn3>:<dsn4><null> */
+	const char* ddp[ISPF_NUM_DD+1];
+	const char* ispfhlq = sms->opts.prop.val[SMSISPFHLQ];
+	const char* ismfhlq = sms->opts.prop.val[SMSISMFHLQ];
+	int i;
+
+	err = createTempPDSE(sms, &sms->opts.tmpProfile);
+	if (err != SMSNoErr) { return err; }
+	err = createTempPDSE(sms, &sms->opts.tmpInputTable);
+	if (err != SMSNoErr) { return err; }
+	err = createTempPDSE(sms, &sms->opts.tmpOutputTable);
+	if (err != SMSNoErr) { return err; }
+
+	sprintf(dd[ISPF_STEPLIBDD], "--STEPLIB=%s.DGTLLIB:%s.SISPLOAD", ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_ISPPLIBDD], "--ISPPLIB=%s.DGTPLIB:%s.SISPPENU", ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_ISPMLIBDD], "--ISPMLIB=%s.DGTMLIB:%s.SISPMENU", ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_ISPSLIBDD], "--ISPSLIB=%s.DGTSLIB:%s.SISPSENU", ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_SYSEXECDD], "--SYSEXEC=%s.DGTCLIB:%s.SISPCLIB", ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_ISPLOGDD],  "--ISPLOG=DUMMY");
+	sprintf(dd[ISPF_ISPTLIBDD], "--ISPTLIB=%s:%s:%s.DGTTLIB:%s.SISPTENU", 
+		sms->opts.tmpInputTable, sms->opts.tmpOutputTable, ismfhlq, ispfhlq);
+	sprintf(dd[ISPF_ISPTABLDD], "--ISPTABL=%s", sms->opts.tmpOutputTable); 
+	sprintf(dd[ISPF_ISPPROFDD], "--ISPPROF=%s", sms->opts.tmpProfile); 
+
+	for (i=0; i<ISPF_NUM_DD; ++i) {
+		ddp[i] = dd[i];
+	}
+	ddp[ISPF_NUM_DD] = NULL;
+
+	return batchtso(input, output, ddp);
 }
 				
 static int genprterr(struct SMS* sms) { 
@@ -113,7 +175,7 @@ static int sgrunsvc(struct SMS* sms) {
 		int rc;
 		rc = batchismf(sms, "SCDS(ACTIVE) STORGRP(FRED)", &output);	
 		if (rc == 0) {
-			fprintf(stdout, "<%s>\n", output);
+			fprintf(stdout, "SCDS results: <%s>\n", output);
 		} else {
 			fprintf(stderr, "Error running batchismf:%d\n", rc);
 		}

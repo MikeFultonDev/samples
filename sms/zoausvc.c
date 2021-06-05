@@ -219,6 +219,18 @@ static char** concopts(const char* pgm, const char* coreopts[], const char* usro
 	return opts;
 }
 
+static void trimnl(int rc, char** output) {
+	size_t outlen;
+	if (rc) {		
+		return;
+	}
+	if (output == NULL) {
+		return;
+	}
+	outlen = strlen(*output);
+	(*output)[outlen-1] = '\0';
+}
+
 int batchtso(const char* input, char** output, const char* usropts[]) {
 	int rc;
 	char** opts;
@@ -234,6 +246,7 @@ int batchtso(const char* input, char** output, const char* usropts[]) {
 	opts = concopts(coreopts[0], coreopts, usropts);
 	rc = zoausvc(input, output, opts);
 	free(opts);
+	trimnl(rc, output);
 	return rc;
 }
 
@@ -246,10 +259,7 @@ int xsysvar(char **output, const char* usropts[]) {
 	opts = concopts(coreopts[0], coreopts, usropts);
 	rc = zoausvc(input, output, opts);
 	free(opts);
-	if (rc == 0) {
-		size_t outlen = strlen(*output);
-		(*output)[outlen-1] = '\0'; /* remove newline */
-	}
+	trimnl(rc, output);		
 	return rc;
 }
 
@@ -262,5 +272,32 @@ int hlq(char **output, const char* usropts[]) {
 	opts = concopts(coreopts[0], coreopts, usropts);
 	rc = zoausvc(input, output, opts);
 	free(opts);
+	trimnl(rc, output);		
+	return rc;
+}
+
+int mvstmp(char **output, const char* usropts[]) {
+	int rc;
+	char** opts;
+	const char* coreopts[] = { "mvstmp", NULL };
+	char* input = "";
+
+	opts = concopts(coreopts[0], coreopts, usropts);
+	rc = zoausvc(input, output, opts);
+	free(opts);
+	trimnl(rc, output);		
+	return rc;
+}
+
+int dtouch(char **output, const char* usropts[]) {
+	int rc;
+	char** opts;
+	const char* coreopts[] = { "dtouch", NULL };
+	char* input = "";
+
+	opts = concopts(coreopts[0], coreopts, usropts);
+	rc = zoausvc(input, output, opts);
+	free(opts);
+	trimnl(rc, output);		
 	return rc;
 }

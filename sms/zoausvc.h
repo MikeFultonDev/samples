@@ -13,4 +13,6 @@
 	int batchtso(const char* input, char** output, const char* usropts[]);
 	int xsysvar(char **output, const char* usropts[]);
 	int hlq(char **output, const char* usropts[]);
+	int dtouch(char **output, const char* usropts[]);
+	int mvstmp(char **output, const char* usropts[]);
 #endif

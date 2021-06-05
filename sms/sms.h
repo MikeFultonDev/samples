@@ -17,7 +17,8 @@
 		SMSSetupErr=3,
 		SMSAllocErr=4,
 		SMSPropertyErr=5,
-		SMSEnvVarNotSet=6
+		SMSEnvVarNotSet=6,
+		SMSISMFErr=7
 	} SMSError;
 
 	typedef enum {
@@ -39,6 +40,9 @@
 
 	typedef struct {
 		SMSProperties prop;
+		char* tmpProfile;
+		char* tmpInputTable;
+		char* tmpOutputTable;
 		int extraarg;
 		int verbose:1;
 		int syntax:1;
