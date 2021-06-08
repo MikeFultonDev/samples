@@ -301,3 +301,16 @@ int dtouch(char **output, const char* usropts[]) {
 	trimnl(rc, output);		
 	return rc;
 }
+
+int opercmd(char **output, const char* usropts[]) {
+	int rc;
+	char** opts;
+	const char* coreopts[] = { "opercmd", NULL };
+	char* input = "";
+
+	opts = concopts(coreopts[0], coreopts, usropts);
+	rc = zoausvc(input, output, opts);
+	free(opts);
+	trimnl(rc, output);		
+	return rc;
+}

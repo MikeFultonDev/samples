@@ -10,6 +10,8 @@
 #ifndef __SMS__
 	#define __SMS__
 
+	#define SMSMAXDSLEN 44
+
 	typedef enum {
 		SMSNoErr=0,
 		SMSOptErr=1,
@@ -22,17 +24,22 @@
 	} SMSError;
 
 	typedef enum {
-		SMSInvalidProgram=0,
-		SMSStorageGroup=1,
-		SMSStorageClass=2
-	} SMSProgram;
-
-	typedef enum {
 		SMSTMPHLQ=0,
 		SMSISPFHLQ=1,
 		SMSISMFHLQ=2,	
-		SMSNumProps=3
+		SMSSCDS=3,	
+		SMSNumProps=4
 	} SMSProps;  
+
+	typedef enum {
+		SMSInvalid=0,
+		SMSManagementClass=1,
+		SMSDataClass=2,
+		SMSStorageClass=3,
+		SMSStorageGroup=4,
+		SMSAggregateGroup=5,
+		SMSACS=6
+	} SMSType;
 
 	typedef struct {
 		char* val[SMSNumProps];             
@@ -50,6 +57,10 @@
 		int delete:1;
 		int create:1;
 		int rename:1;
+		int translate:1;
+		int test:1;
+		int validate:1;
+		int scds:1;
 	} SMSOpts;
 
 	typedef struct { char stggrp[8]; } SMSSGOpt;
@@ -62,10 +73,11 @@
 		int (*rc)(struct SMS*);	
 		int argc;
 		char** argv;
-		SMSProgram prog;
+		SMSType prog;
 		int err;
 		SMSOpts opts;
+		char scds[SMSMAXDSLEN];
 	} SMS;
 
-	SMS* crtSMS(SMSProgram prog, int argc, char* argv[]);
+	SMS* crtSMS(SMSType prog, int argc, char* argv[]);
 #endif

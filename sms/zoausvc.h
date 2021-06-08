@@ -16,4 +16,5 @@
 	int hlq(char **output, const char* usropts[]);
 	int dtouch(char **output, const char* usropts[]);
 	int mvstmp(char **output, const char* usropts[]);
+	int opercmd(char **output, const char* usropts[]);
 #endif
