@@ -223,7 +223,7 @@ static int batchismf(SMS* sms, const char* input, char** output, const char* usr
 	return rc;
 }
 
-#define DEBUG 1
+#define DEBUG 0
 
 static int scdsset(SMS* sms) {
 	return sms->opts.scds;
