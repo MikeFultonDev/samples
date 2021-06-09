@@ -9,18 +9,24 @@
  **********************************************************************/
 #include "sms.h"
 
-int main(int argc, char* argv[]) {
-	SMS* sms;
-	int rc, shutrc;
+static int sgparse(struct SMS* sms) {
+	return parsearg(sms, "cdhlrv");
+}
 
-	sms = crtSMS(SMSStorageGroup, argc, argv);
-	if (sms->inerr(sms)) {
-		sms->prterr(sms);
-		return sms->rc(sms);
+static int sgrunsvc(struct SMS* sms) {
+	int rc;
+	if (!sms->opts.list) {
+                return errmsg(sms, SMSISMFErr);
+ 	}
+        rc = rundgt(sms, "ACBQBAIG SAVE SGNAMES STORGRP(*) SPACEGB(N)");
+        if (!rc) {
+	        rc = genrpt(sms, "ACBQBARJ SGNAMES", "STORGRP SGTYPE TOTALSPC FREESPC");
 	}
-	sms->runsvc(sms);
-	if (sms->inerr(sms)) {
-		sms->prterr(sms);
-	}
-	return sms->rc(sms);
+	return rc;
+}
+
+int main(int argc, char* argv[]) {
+	SMS sms  = { sgparse,  sgrunsvc,  SMSStorageGroup, argc, argv };
+
+	return runsms(&sms);
 }

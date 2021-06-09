@@ -9,18 +9,27 @@
  **********************************************************************/
 #include "sms.h"
 
-int main(int argc, char* argv[]) {
-	SMS* sms;
-	int rc, shutrc;
+static int acsparse(struct SMS* sms) {
+	return parsearg(sms, "cdhltrVT");
+}
+static int acsrunsvc(struct SMS* sms) {
+	int rc;
+	char opts[3*80];
+	const char* acspds = "'SYS1.S0W1.DFSMS.CNTL'";
+	const char* acsmem = "STORCLAS";
+	const char* acslst = "'IBMUSER.ACS.LISTING'";
+	if (!sms->opts.translate) {
+		return errmsg(sms, SMSISMFErr);
+	}
 
-	sms = crtSMS(SMSACS, argc, argv);
-	if (sms->inerr(sms)) {
-		sms->prterr(sms);
-		return sms->rc(sms);
-	}
-	sms->runsvc(sms);
-	if (sms->inerr(sms)) {
-		sms->prterr(sms);
-	}
-	return sms->rc(sms);
+        sprintf(opts, "ACBQBAO1 +\nACSSRC(%s) MEMBER(%s) +\n LISTNAME(%s)", acspds, acsmem, acslst);
+	rc = rundgt(sms, opts);
+	return rc;
+}
+
+
+int main(int argc, char* argv[]) {
+	SMS sms = { acsparse, acsrunsvc, SMSACS, argc, argv };
+
+	return runsms(&sms);
 }

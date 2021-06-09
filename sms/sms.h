@@ -20,7 +20,9 @@
 		SMSAllocErr=4,
 		SMSPropertyErr=5,
 		SMSEnvVarNotSet=6,
-		SMSISMFErr=7
+		SMSCrtTmpSeq=7,
+		SMSWriteTmpSeq=8,
+		SMSISMFErr=9
 	} SMSError;
 
 	typedef enum {
@@ -68,16 +70,19 @@
 	typedef struct SMS {
 		int (*parsearg)(struct SMS*);	
 		int (*runsvc)(struct SMS*);	
-		int (*inerr)(struct SMS*);	
-		int (*prterr)(struct SMS*);	
-		int (*rc)(struct SMS*);	
+		SMSType prog;
 		int argc;
 		char** argv;
-		SMSType prog;
+		char* output;
 		int err;
 		SMSOpts opts;
 		char scds[SMSMAXDSLEN];
 	} SMS;
 
-	SMS* crtSMS(SMSType prog, int argc, char* argv[]);
+	SMSError runsms(SMS* sms);
+	int rundgt(SMS* sms, const char* cmdopts);
+	int genrpt(SMS* sms, const char* rptcmd, const char* rptfields);
+	int syntax(SMS* sms);
+	int errmsg(SMS* sms, SMSError err, ...);
+	int parsearg(SMS* sms, const char* validopts);
 #endif
