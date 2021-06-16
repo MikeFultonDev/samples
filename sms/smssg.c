@@ -26,7 +26,7 @@ static int sgrunsvc(struct SMS* sms) {
 	} else {
 		rc = rundgt(sms, "ACBQBAI4 SAVE DASDLST SPCDATA(Y) PHYDATA(Y) STORGRP(*) VOL(*)", "CDSNAME");
 		if (!rc) {
-			rc = genrpt(sms, "ACBQVAR1 DASDLST SORT(SG)", "SG\nVOLSER", "NEWAPPL(DGT)");
+			rc = genrpt(sms, "ACBQVAR1 DASDLST SORT(SG)", "SG VOLSER ALLOCSP FREESPC %FREE", "NEWAPPL(DGT)");
 		}
 	}
 	return rc;
