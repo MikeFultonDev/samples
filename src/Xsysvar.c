@@ -235,11 +235,11 @@ static int hasFilter(Options_T* opt, VSAMField_T field) {
 	return (opt->len[field] > 0);
 }
 
-const char* optstr(const char **argv, Options_T* opt, VSAMField_T field) {
+static const char* optstr(const char **argv, Options_T* opt, VSAMField_T field) {
 	return &argv[opt->argindex[field]][opt->offset[field]];
 }
 
-size_t optlen(Options_T* opt, VSAMField_T field) {
+static size_t optlen(Options_T* opt, VSAMField_T field) {
 	return opt->len[field];
 }
 
@@ -899,7 +899,7 @@ static char* fmttime(const char* time, char* buffer) {
 	return buffer;
 }
 
-int ksdskey(KSDSKey_T* key) {
+static int ksdskey(KSDSKey_T* key) {
 	CSRSIRequest     req;
 	CSRSIInfoAreaLen len;
 	CSRSIReturnCode  rc;
@@ -1474,7 +1474,7 @@ static int createDB(const char** argv, Options_T* opt) {
 	return rc;
 }
 
-int main(int argc, const char** argv) {
+int xsysvar(int argc, const char** argv) {
 	Options_T opt = { 0 };
 	int rc;
 
@@ -1498,4 +1498,9 @@ int main(int argc, const char** argv) {
 	}
 	timing(&opt, Exit, "main");
 	return rc;
+}
+#pragma export(xsysvar)
+
+int main(int argc, const char** argv) {
+	return xsysvar(argc, argv);
 }

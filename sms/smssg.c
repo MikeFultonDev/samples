@@ -10,17 +10,24 @@
 #include "sms.h"
 
 static int sgparse(struct SMS* sms) {
-	return parsearg(sms, "cdhlrv");
+	return parsearg(sms, "cdhlrvL");
 }
 
 static int sgrunsvc(struct SMS* sms) {
 	int rc;
-	if (!sms->opts.list) {
+	if (!sms->opts.list && !sms->opts.volumes) {
                 return errmsg(sms, SMSISMFErr);
  	}
-        rc = rundgt(sms, "ACBQBAIG SAVE SGNAMES STORGRP(*) SPACEGB(N)");
-        if (!rc) {
-	        rc = genrpt(sms, "ACBQBARJ SGNAMES", "STORGRP SGTYPE TOTALSPC FREESPC");
+	if (sms->opts.list) {
+		rc = rundgt(sms, "ACBQBAIG SAVE SGNAMES STORGRP(*) SPACEGB(N)", "SCDS");
+		if (!rc) {
+			rc = genrpt(sms, "ACBQBARJ SGNAMES", "STORGRP SGTYPE TOTALSPC FREESPC PERFSP", "");
+		}
+	} else {
+		rc = rundgt(sms, "ACBQBAI4 SAVE DASDLST SPCDATA(Y) PHYDATA(Y) STORGRP(*) VOL(*)", "CDSNAME");
+		if (!rc) {
+			rc = genrpt(sms, "ACBQVAR1 DASDLST SORT(SG)", "SG\nVOLSER", "NEWAPPL(DGT)");
+		}
 	}
 	return rc;
 }

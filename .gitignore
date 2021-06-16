@@ -1,10 +1,13 @@
 bin/readsysvar
 bin/Xsysvar
+bin/xsysvar
 bin/sysinfo
 bin/64/svc99basic
 bin/31/svc99basic
 bin/64/*
 bin/31/*
+bin/*.o
+bin/*.x
 src/*.o
 src/*.lst
 sms/*.o

@@ -23,7 +23,7 @@ static int acsrunsvc(struct SMS* sms) {
 	}
 
         sprintf(opts, "ACBQBAO1 +\nACSSRC(%s) MEMBER(%s) +\n LISTNAME(%s)", acspds, acsmem, acslst);
-	rc = rundgt(sms, opts);
+	rc = rundgt(sms, opts, "SCDS");
 	return rc;
 }
 

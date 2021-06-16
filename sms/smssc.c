@@ -18,9 +18,9 @@ static int scrunsvc(struct SMS* sms) {
 	if (!sms->opts.list) {
 		return errmsg(sms, SMSISMFErr);
 	}
-	rc = rundgt(sms, "ACBQBAIF SAVE SCNAMES STORCLAS(*)");
+	rc = rundgt(sms, "ACBQBAIF SAVE SCNAMES STORCLAS(*)", "SCDS");
 	if (!rc) {
-		rc = genrpt(sms, "ACBQBARH SCNAMES", "STORCLAS");
+		rc = genrpt(sms, "ACBQBARH SCNAMES", "STORCLAS", "");
 	}
 	return rc;
 }

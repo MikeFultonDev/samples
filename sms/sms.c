@@ -12,15 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "sms.h"
+#include "smsmsg.h"
 #include "zoausvc.h"
-
-static const char* pgmname(SMS* sms) {
-	switch (sms->prog) {
-		case SMSStorageGroup: return "smssg";
-		case SMSStorageClass: return "smssc";
-	}
-	return "inv";
-}
 
 static int validopt(char c, const char* list) {
 	int i;
@@ -30,21 +23,10 @@ static int validopt(char c, const char* list) {
 	return 0;
 }
 
-int syntax(struct SMS* sms) {
-	fprintf(stderr, "Syntax for %s\n", pgmname(sms));
-	fprintf(stderr, "...tbd\n");
-	return SMSSyntax;  
-}
-
-int errmsg(SMS* sms, SMSError err, ...) {
-	fprintf(stderr, "Error message %d issued\n", err);
-	return err;
-}
-
 int parsearg(SMS* sms, const char* validopts) {
 	int opt;
 	opterr = 0; 
-	while ((opt = getopt(sms->argc, sms->argv, "cvdhlrtTV")) != -1) {
+	while ((opt = getopt(sms->argc, sms->argv, "cvdhlrtLTV")) != -1) {
 		if (!validopt(opt, validopts)) {
 			errmsg(sms, SMSOptErr, opt);
 			return SMSOptErr;
@@ -70,6 +52,9 @@ int parsearg(SMS* sms, const char* validopts) {
 				break;
 			case 'V':
 				sms->opts.validate = 1;
+				break;
+			case 'L':
+				sms->opts.volumes = 1;
 				break;
 			case 'r':
 				sms->opts.rename = 1;
@@ -218,18 +203,25 @@ static int batchismf(SMS* sms, const char* input, const char* usropts[]) {
 	if (!batchtsoopts) {
 		return SMSAllocErr;
 	}
+	if (sms->opts.verbose) {
+		i=0;
+		while (batchtsoopts[i] != NULL) {
+			infomsg(sms, SMSBatchTSOParmInfo, batchtsoopts[i]);
+			++i;
+		}
+		infomsg(sms, SMSBatchTSOParmInfo, "\n");
+	}
 	rc = batchtso(input, &sms->output, (const char**) batchtsoopts);
 	free(batchtsoopts);
 	return rc;
 }
 
-#define DEBUG 0
-
 static int scdsset(SMS* sms) {
 	return sms->opts.scds;
 }
 	
-int getscds(SMS* sms, char** scds) {
+#if SCDSACTIVEDATASET
+int getactivescds(SMS* sms, char** scds) {
 	int rc;
 	char* p;
 	const char* scdspfx = "SCDS = ";
@@ -252,6 +244,7 @@ int getscds(SMS* sms, char** scds) {
 			sms->scds[i] = p[i];
 		}
 		sms->scds[i] = '\0';
+		strcpy(sms->scds, "ACTIVE");
 	}
 	scdslen = strlen(sms->scds);
 	*scds = malloc(scdslen+1);
@@ -261,24 +254,41 @@ int getscds(SMS* sms, char** scds) {
 	memcpy(*scds, sms->scds, scdslen+1);
 	return SMSNoErr;
 }	
+#else
+int getactivescds(SMS* sms, char** scds) {
+	size_t scdslen;
+
+	if (!scdsset(sms)) {
+		strcpy(sms->scds, "ACTIVE");
+	}
+	scdslen = strlen(sms->scds);
+	*scds = malloc(scdslen+1);
+	if (*scds == NULL) {
+		return SMSAllocErr;
+	}
+	memcpy(*scds, sms->scds, scdslen+1);
+	return SMSNoErr;
+}
+#endif
 
 static const char* ftrtxt = "BATSCRW(132) BATSCRD(27) BREDIMAX(3) BDISPMAX(99999999)";
-int rundgt(SMS* sms, const char* cmdopts) {
+int rundgt(SMS* sms, const char* cmdopts, const char* SCDSOpt) {
 	const char* scds;
 	const char* genopts[] = { NULL };
 	SMSError err;
 	char input[4*80];
-	const char* ismffmt = "ISPSTART CMD( +\n%s +\nSCDS('%s')) NEWAPPL(DGT) +\n%s";
+	const char* ismffmt = "ISPSTART CMD( +\n%s +\n%s('%s')) NEWAPPL(DGT) +\n%s";
 	int rc;
 
+	sms->output = NULL;
 	scds = sms->opts.prop.val[SMSSCDS];
-	sprintf(input, ismffmt, cmdopts, scds, ftrtxt);
+	sprintf(input, ismffmt, cmdopts, SCDSOpt, scds, ftrtxt);
 
 	rc = batchismf(sms, input, genopts);	
 	if (rc == 0) {
-#if DEBUG
-		infomsg(sms);
-#endif
+		if (sms->opts.verbose) {
+			infomsg(sms, SMSISMFErr);
+		}
 	} else {
 		errmsg(sms, SMSISMFErr);
 		return SMSISMFErr;
@@ -286,16 +296,17 @@ int rundgt(SMS* sms, const char* cmdopts) {
 	return SMSNoErr;
 }
 
-int genrpt(SMS* sms, const char* rptcmd, const char* rptfields) {
+int genrpt(SMS* sms, const char* rptcmd, const char* rptfields, const char* appl) {
 	const char* rptopts[] = { NULL, NULL, NULL };
 	SMSError err;
 	char input[2*80];
 	char rptdd[80];
 	char* tmpseq=NULL;
-	const char* ismfrptfmt = "ISPSTART CMD( +\n%s) +\n%s";
+	const char* ismfrptfmt = "ISPSTART CMD( +\n%s) +\n %s %s";
 	int rc;
 
-	sprintf(input, ismfrptfmt, rptcmd, ftrtxt);
+	sms->output = NULL;
+	sprintf(input, ismfrptfmt, rptcmd, appl, ftrtxt);
 
 	err = cidneTempSeq(sms, &tmpseq); 
 	if (err) { 
@@ -410,7 +421,7 @@ static int setupBaseEnv(SMS* sms) {
 	}
 	sms->opts.prop.val[SMSISMFHLQ] = value;
 
-	rc = getscds(sms, &value);
+	rc = getactivescds(sms, &value);
 	if (rc) {
 		rc = getproperty(sms, SMS_SCDS, &value);
 		if (rc) {

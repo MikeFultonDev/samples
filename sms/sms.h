@@ -10,20 +10,9 @@
 #ifndef __SMS__
 	#define __SMS__
 
-	#define SMSMAXDSLEN 44
+	#include "smsmsg.h"
 
-	typedef enum {
-		SMSNoErr=0,
-		SMSOptErr=1,
-		SMSSyntax=2,
-		SMSSetupErr=3,
-		SMSAllocErr=4,
-		SMSPropertyErr=5,
-		SMSEnvVarNotSet=6,
-		SMSCrtTmpSeq=7,
-		SMSWriteTmpSeq=8,
-		SMSISMFErr=9
-	} SMSError;
+	#define SMSMAXDSLEN 44
 
 	typedef enum {
 		SMSTMPHLQ=0,
@@ -62,6 +51,7 @@
 		int translate:1;
 		int test:1;
 		int validate:1;
+		int volumes:1;
 		int scds:1;
 	} SMSOpts;
 
@@ -80,9 +70,7 @@
 	} SMS;
 
 	SMSError runsms(SMS* sms);
-	int rundgt(SMS* sms, const char* cmdopts);
-	int genrpt(SMS* sms, const char* rptcmd, const char* rptfields);
-	int syntax(SMS* sms);
-	int errmsg(SMS* sms, SMSError err, ...);
+	int rundgt(SMS* sms, const char* cmdopts, const char* SCDSOpt);
+	int genrpt(SMS* sms, const char* rptcmd, const char* rptfields, const char* appl);
 	int parsearg(SMS* sms, const char* validopts);
 #endif
