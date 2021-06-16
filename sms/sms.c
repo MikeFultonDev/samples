@@ -320,9 +320,8 @@ int genrpt(SMS* sms, const char* rptcmd, const char* rptfields, const char* appl
 	rptopts[0] = "--ISPFILE=stdout";
 	rptopts[1] = rptdd;
 	rc = batchismf(sms, input, rptopts);	
-	if (rc == 0) {
-		puts(sms->output);
-	} else {
+	puts(sms->output);
+	if (rc != 0) {
 		return errmsg(sms, SMSISMFErr);
 	}
 	return SMSNoErr;

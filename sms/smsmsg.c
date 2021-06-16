@@ -74,9 +74,6 @@ int infomsg(SMS* sms, SMSInfo info, ...) {
 	if (info == SMSDetailInfo) {
 		return info;
 	}
-	if (sms->output) {
-		infomsg(sms, SMSDetailInfo, sms->output);
-	}
 	return info;
 }
 
@@ -88,9 +85,6 @@ int errmsg(SMS* sms, SMSError err, ...) {
 
 	if (err == SMSDetailErr) {
 		return err;
-	}
-	if (sms->output) {
-		errmsg(sms, SMSDetailErr, sms->output);
 	}
 	return err;
 }
