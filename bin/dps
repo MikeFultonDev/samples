@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# dps - simple program to put the opercmd d a,all onto single lines to make parsing easier
+#
+raw=`opercmd 'd a,all' | tail +6`
+echo "${raw}" | awk '
+	BEGIN { text = "" } 
+	{ 
+		sub(/^[ ]+/,""); 
+		if (NF > 6 && text != "") { 
+			if (NF == 7) {
+				text = substr(text,1,18) "~~~~~~~" substr(text,26)
+			}
+			print text; text="" 
+		} 
+		{ 
+			text=text $0 " " 
+		} 
+	} 
+	END { print text }'
+
