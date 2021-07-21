@@ -1,6 +1,7 @@
 export DFH_HLQ='DFH560'
 export SEZ_HLQ='TCPIP'
 export CEE_HLQ='CEE'
+export EQA_HLQ='EQAF00'
 
 REGION=TS56
 export DFH_GENERAL="CICS"

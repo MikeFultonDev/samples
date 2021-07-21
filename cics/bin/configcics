@@ -35,3 +35,6 @@ IN="
 "
 vsamout=`echo "${IN}" | mvscmdauth --pgm=IDCAMS --sysprint=* --sysin=stdin`
 chkrc $? "${vsamout}"
+
+tsocmd "alu cicsuser omvs(noassizemax)"
+tsocmd "alu cicsuser omvs(memlimit(16G))"
