@@ -9,7 +9,7 @@
  **********************************************************************/
 #ifndef __SMS__
 	#define __SMS__
-
+	#include <stddef.h>
 	#include "smsmsg.h"
 
 	#define SMSMAXDSLEN 44
@@ -69,8 +69,13 @@
 		char scds[SMSMAXDSLEN];
 	} SMS;
 
+	typedef struct {
+		char ds[SMSMAXDSLEN+1];
+		char mem[SMSMAXMEMLEN+1];
+	} SMSDataset;
 	SMSError runsms(SMS* sms);
 	int rundgt(SMS* sms, const char* cmdopts, const char* SCDSOpt);
 	int genrpt(SMS* sms, const char* rptcmd, const char* rptfields, const char* appl);
-	int parsearg(SMS* sms, const char* validopts);
+	int parsearg(SMS* sms, const char* validopts, size_t minarg, size_t maxarg);
+	int parseds(SMS* sms, const char* input, SMSDataset* output);
 #endif

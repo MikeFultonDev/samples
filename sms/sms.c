@@ -22,10 +22,136 @@ static int validopt(char c, const char* list) {
 	}
 	return 0;
 }
-
-int parsearg(SMS* sms, const char* validopts) {
-	int opt;
+ 
+/*
+ * https://tech.mikefulton.ca/DatasetNames
+ */
+int parseds(SMS* sms, const char* input, SMSDataset* output) {
+	size_t segchar = 0;
+	size_t dschar = 0;
+	size_t memchar = 0;
+	int inds = 1;
+	int inmem = 0;
+	while (*input) {
+		char c = input[dschar];
+		char o;
+		if (!inds && !inmem) {
+			return errmsg(sms, SMSTrailingData, input);
+		}
+		if ((c == '.' || c == '(' || c == ')') && (segchar == 0)) {
+			return errmsg(sms, SMSSegmentTooShort, input);
+		}
+		if (c == ')' && memchar == 0) {
+			return errmsg(sms, SMSMemberTooShort, input);
+		}
+		if (dschar == SMSMAXDSLEN) {
+			return errmsg(sms, SMSDatasetTooLong, input);
+		}
+		if (memchar == SMSMEMLEN) {
+			return errmsg(sms, SMSMemberTooLong, input);
+		}
+		if (segchar == SMSSEGLEN) {
+			return errmsg(sms, SMSSegmentTooLong, input);
+		}
+		if (c == '(') {
+			inds = 0;
+			inmem = 1;
+		} else if (c == ')') {
+			inmem = 0;
+		}
+		switch (c) {
+			case 'a':
+			case 'b':
+			case 'c':
+			case 'd':
+			case 'e':
+			case 'f':
+			case 'g':
+			case 'h':
+			case 'i':
+			case 'j':
+			case 'k':
+			case 'l':
+			case 'm':
+			case 'n':
+			case 'o':
+			case 'p':
+			case 'q':
+			case 'r':
+			case 's':
+			case 't':
+			case 'u':
+			case 'v':
+			case 'w':
+			case 'x':
+			case 'y':
+			case 'z':
+				o = c + 0x40; /* NOTE: EBCDIC specific */
+				break;
+			case 'A':
+			case 'B':
+			case 'C':
+			case 'D':
+			case 'E':
+			case 'F':
+			case 'G':
+			case 'H':
+			case 'I':
+			case 'J':
+			case 'K':
+			case 'L':
+			case 'M':
+			case 'N':
+			case 'O':
+			case 'P':
+			case 'Q':
+			case 'R':
+			case 'S':
+			case 'T':
+			case 'U':
+			case 'V':
+			case 'W':
+			case 'X':
+			case 'Y':
+			case 'Z':
+			case '#':
+			case '@':
+			case '$':
+				o = c;
+				break;
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+			case '-':
+				o = c;
+				if (segchar == 0) {
+					return errmsg(sms, SMSInvalidFirstCharInSegment, o);
+				}
+				break;
+			default:
+				return errmsg(sms, SMSInvalidCharInSegment, c);
+				break;
+		}
+		if (inds) {
+			dschar++;
+		} else if (inmem) {
+			memchar++;
+		}
+		segchar++;	
+	}
+}
+	
+int parsearg(SMS* sms, const char* validopts, size_t minarg, size_t maxarg) {
+	size_t opt;
 	opterr = 0; 
+	size_t optarg;
 	while ((opt = getopt(sms->argc, sms->argv, "cvdhlrtLTV")) != -1) {
 		if (!validopt(opt, validopts)) {
 			errmsg(sms, SMSOptErr, opt);
@@ -68,6 +194,11 @@ int parsearg(SMS* sms, const char* validopts) {
 		}
 	}
 	sms->opts.extraarg = optind;
+	optarg = (sms->argc - optind);
+	if (optarg < minarg || optarg > maxarg) {
+		printf("Expected %d to %d arguments but got %d were specified\n", minarg, maxarg, optarg);
+		return SMSOptErr;
+	}
 	return SMSNoErr;
 }
 

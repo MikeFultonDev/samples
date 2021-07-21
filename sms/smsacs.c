@@ -10,7 +10,7 @@
 #include "sms.h"
 
 static int acsparse(struct SMS* sms) {
-	return parsearg(sms, "cdhltrVT");
+	return parsearg(sms, "cdhltrVT", 1, 1);
 }
 static int acsrunsvc(struct SMS* sms) {
 	int rc;
