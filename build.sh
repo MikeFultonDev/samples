@@ -1,4 +1,5 @@
 #!/bin/sh
+
 readjson=`whence readjson.include` 
 if [ $? -gt 0 ]; then
 	echo "Need to add zospm/bin to your PATH" >&2 

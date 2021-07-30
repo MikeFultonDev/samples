@@ -1,0 +1,40 @@
+#!/bin/sh
+#set -x
+#
+# Create VSAM temporary dataset, if it does not exist
+#
+function chkrc {
+	rc=$1
+	shift 1
+	msg="$*"
+
+	if [ $rc -gt 0 ]; then
+		echo "${msg}" >&2
+		exit $rc
+	fi
+}
+
+IN="
+  DELETE ${DFH_HLQ}.${DFH_GENERAL}.DFHDBFK
+  SET MAXCC=0
+  DEFINE CLUSTER (                             -
+                NAME( ${DFH_HLQ}.${DFH_GENERAL}.DFHDBFK )  -
+                INDEXED                        -
+                RECORDS(100 20)                -
+                KEYS(22,0)                     -
+                RECORDSIZE(1428 1428)          -
+                )                              -
+  INDEX         (                              -
+                NAME( ${DFH_HLQ}.${DFH_GENERAL}.DFHDBFK.INDEX )     -
+                CONTROLINTERVALSIZE(512)       -
+                )                              -
+  DATA          (                              -
+                NAME( ${DFH_HLQ}.${DFH_GENERAL}.DFHDBFK.DATA )      -
+                CONTROLINTERVALSIZE(2048)      -
+                )
+"
+vsamout=`echo "${IN}" | mvscmdauth --pgm=IDCAMS --sysprint=* --sysin=stdin`
+chkrc $? "${vsamout}"
+
+tsocmd "alu cicsuser omvs(noassizemax)"
+tsocmd "alu cicsuser omvs(memlimit(16G))"

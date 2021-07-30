@@ -1,0 +1,67 @@
+#!/bin/sh
+#
+# runjcl: run jcl from stdin, adding the jobcard from jobcard Xsysvar or exported variable
+#
+# wait for job to complete, print out ddls output and set return code to RC of job
+#
+function runStep {
+	stdin=`cat`
+	jobcard=`Xsysvar -Pgeneral jobcard`
+	if [ $? -gt 0 ]; then
+		echo "Set up jobcard in Xsysvar under group general" >&2
+		return 4
+	fi
+	raw=`echo "${jobcard}
+${stdin}" | submit`
+	jobid=`echo $raw | awk '{ print $2; }'`
+	echo ${jobid}
+	return 0
+}
+
+function checkJCLStatus {
+	jobid=$1
+	maxwait=$2
+	currwait=0
+	while [ true ]; do
+		status=`jls 2>/dev/null ${jobid}`
+		state=`echo ${status} | awk ' { print $4; }'`
+		case "$state" in
+		CC)
+			rc=`echo ${status} | awk ' { print $5; }'`
+			if [ $rc -gt 0 ]; then
+				echo "Job ${jobid} failed with rc: $rc" >&2
+			else
+				echo "Job ${jobid} passed" 
+			fi
+			return ${rc}
+		;;
+		ABEND*)
+			echo "Job ${jobid} ABENDED" >&2
+			return 32
+		;;
+		JCLERR)
+			echo "Job ${jobid} has a JCL error" >&2
+			return 32
+		;;
+		*)
+			sleep 1
+			currwait=$((currwait+1))
+		esac
+		if [ ${currwait} -gt ${maxwait} ]; then
+			echo "Timed out waiting for job ${jobid} to complete" >&2
+			return -1
+		fi
+	done
+}
+
+jobid=`runStep`
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+
+checkJCLStatus "${jobid}" 10
+rc=$?
+ddls ${jobid}
+exit $rc
+

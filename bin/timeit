@@ -1,0 +1,22 @@
+#!/bin/sh
+#set -x
+if [ $# -lt 2 ]; then
+	echo "Syntax: $0 <iterations> <program> <args>\n" >&2
+	exit 4
+fi
+iterations=$1
+program=$2
+shift 2
+args=$*
+count=0 
+while [ true ]; do
+	count=$((count+1))
+	if [ $count -gt $iterations ]; then 
+  		break;
+	fi
+	time $program $args
+	if [ $? -gt 0 ]; then 
+		echo "Failed after $count iterations" >&2
+		break;
+	fi
+done 
