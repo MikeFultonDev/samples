@@ -18,7 +18,7 @@ static const char* errfmt[] = {
 	/*  2 */ "2",
 	/*  3 */ "3",
 	/*  4 */ "4",
-	/*  5 */ "5",
+	/*  5 */ "Unable to retrieve property: %s\n",
 	/*  6 */ "6",
 	/*  7 */ "7",
 	/*  8 */ "8",

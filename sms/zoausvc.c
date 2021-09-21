@@ -253,7 +253,7 @@ int batchtso(const char* input, char** output, const char* usropts[]) {
 int xsysvar(char **output, const char* usropts[]) {
 	int rc;
 	char** opts;
-	const char* coreopts[] = { "Xsysvar", NULL };
+	const char* coreopts[] = { "xsysvar", NULL };
 	char* input = "";
 
 	opts = concopts(coreopts[0], coreopts, usropts);

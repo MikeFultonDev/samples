@@ -47,10 +47,10 @@ int parseds(SMS* sms, const char* input, SMSDataset* output) {
 		if (dschar == SMSMAXDSLEN) {
 			return errmsg(sms, SMSDatasetTooLong, input);
 		}
-		if (memchar == SMSMEMLEN) {
+		if (memchar == SMSMAXMEMLEN) {
 			return errmsg(sms, SMSMemberTooLong, input);
 		}
-		if (segchar == SMSSEGLEN) {
+		if (segchar == SMSMAXSEGLEN) {
 			return errmsg(sms, SMSSegmentTooLong, input);
 		}
 		if (c == '(') {

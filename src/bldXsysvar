@@ -3,7 +3,5 @@
 # Very simple script to build Xsysvar
 #
 cd ../bin
-xlc -qasm -I/usr/include/zos -Wc,GONUM,CSECT\(XSV\),DLL -Wl,DLL -O2 -o Xsysvar ../src/Xsysvar.c
-extattr +l Xsysvar
-xlc -Wc,GONUM,CSECT\(XSYSV\),DLL -Wl,DLL -O2 -o xsysvar ../src/xsysvar.c Xsysvar.x
+xlc -qasm -I/usr/include/zos -Wc,GONUM -O2 -o xsysvar ../src/Xsysvar.c
 exit $?

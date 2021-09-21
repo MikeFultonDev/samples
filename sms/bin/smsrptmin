@@ -1,2 +1,0 @@
-#!/bin/sh
-tail +8 | awk '/^1/ { suppress=1; next; } // { if (!suppress) { print; } }'  

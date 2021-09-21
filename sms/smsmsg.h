@@ -23,7 +23,15 @@
 		SMSCrtTmpSeq=7,
 		SMSWriteTmpSeq=8,
 		SMSISMFErr=9,
-		SMSDetailErr=10
+		SMSDetailErr=10,
+		SMSTrailingData=11,
+		SMSSegmentTooShort=12,
+		SMSMemberTooShort=13,
+		SMSDatasetTooLong=14,
+		SMSMemberTooLong=15,
+		SMSSegmentTooLong=16,
+		SMSInvalidFirstCharInSegment=17,
+		SMSInvalidCharInSegment=18
 	} SMSError;
 
 	typedef enum {

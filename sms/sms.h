@@ -13,6 +13,8 @@
 	#include "smsmsg.h"
 
 	#define SMSMAXDSLEN 44
+	#define SMSMAXMEMLEN 8
+	#define SMSMAXSEGLEN 8
 
 	typedef enum {
 		SMSTMPHLQ=0,

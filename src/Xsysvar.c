@@ -1499,7 +1499,6 @@ int xsysvar(int argc, const char** argv) {
 	timing(&opt, Exit, "main");
 	return rc;
 }
-#pragma export(xsysvar)
 
 int main(int argc, const char** argv) {
 	return xsysvar(argc, argv);
