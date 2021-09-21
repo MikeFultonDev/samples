@@ -196,7 +196,7 @@ int parsearg(SMS* sms, const char* validopts, size_t minarg, size_t maxarg) {
 	sms->opts.extraarg = optind;
 	optarg = (sms->argc - optind);
 	if (optarg < minarg || optarg > maxarg) {
-		printf("Expected %d to %d arguments but got %d were specified\n", minarg, maxarg, optarg);
+		fprintf(stderr, "Expected %d to %d arguments but got %d were specified\n", minarg, maxarg, optarg);
 		return SMSOptErr;
 	}
 	return SMSNoErr;
