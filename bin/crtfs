@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# Allocate a ~5GB file system from volume USER00 with a dataset name <dataset>
+# TBD: add options to control size (on CYL spec) and volume (on VOLUMES spec)
+
+# After creating, you can mount with:
+# mkdir <mount directory>
+# /usr/sbin/mount -t zfs -f <dataset> <mount directory>
+#
+if [ $# -ne 1 ]; then
+	echo "Syntax: crtfs <dataset>\n" >&2
+	echo "  where <dataset> is the linear file system used as the backing store\n" >&2
+	echo "  for the zFS file system\n" >&2
+	exit 8
+fi
+LFS=$(echo "$1" | tr '[:lower:]' '[:upper:]')
+drm -f "${LFS}"
+out=`mvscmdauth --pgm=IDCAMS --sysprint=stdout --sysin=stdin` <<ZZ
+   DEFINE CLUSTER (NAME(${LFS}) -
+                   VOLUMES(USER00) -
+                   STORCLAS(SCEXTEAV) -
+                   LINEAR CYL(6000 500) SHAREOPTIONS(2))
+ZZ
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "${out}" >&2
+	exit $rc
+fi
+
+out=`mvscmdauth --pgm=IOEAGFMT --sysprint=stdout --args="-aggregate ${LFS}"`
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "${out}" >&2
+	exit $rc
+fi
