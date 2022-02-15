@@ -1,0 +1,49 @@
+#
+# meant to be sourced to provide functions
+#
+
+#
+# List the VTOC for a particular volume.
+# IEHLIST requires that you provide a DDname for the volume, so we specify the VTOC
+#
+list_volume() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	volds="SYS1.VVDS.V"${vol}
+
+	echo "  LISTVTOC FORMAT,VOL=3390=${vol}" | mvscmd --pgm=iehlist --sysprint=* --dd=${volds} --sysin=stdin 2>/dev/null
+	return $?
+}
+
+#
+# print out the volume total space (in cylinders)
+#
+vol_total_space() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	opercmd "devserv qd,vol=${vol},totalcyl" | tail -1 | awk '{ print $7; }'
+	return $?
+}
+
+#
+# print out the volume free space (in cylinders)
+#
+vol_free_space() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	details=`list_volume ${vol}`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		return $rc
+	fi
+	echo "${details}" | grep 'ON THIS VOLUME' | grep 'EMPTY CYLINDERS' | awk ' { print $4; }'
+	return $?
+}
+
+#
+# print out UCB and VOLSER for all online volumes
+#	
+online_vols() {
+	opercmd 'd u,dasd,online,,65536' | tail +5 | sed '$d' | cut -c 44-48,68-74
+	return $?
+}

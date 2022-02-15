@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# dv - print out online volumes, showing available/total space (in K)
+# Syntax: dv [<volser>]*
+# If no volser specified, all volumes printed
+#
+# Output Format:
+#  <volser> <available>/<total>
+#set -x
+MY_DIR=$(cd `dirname $0`; echo $PWD)
+
+volfunc="${MY_DIR}/volfunc"
+if ! [ -f "${volfunc}" ]; then
+	echo "Unable to source volfunc" >&2
+	exit 16
+fi
+
+. "${volfunc}"
+
+if [ $# -gt 0 ]; then
+	volsers=$(echo $* | tr '[:lower:]' '[:upper:]')
+else
+	vols=`online_vols`
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to obtain online volumes" >&2
+		exit $rc
+	fi
+
+	volsers=`echo "${vols}" | awk ' { print $2; }'`
+fi
+
+for volser in ${volsers}; do
+	fs=`vol_free_space ${volser}`
+	if [ $? -gt 0 ]; then 
+		fs='?'
+	else
+		fs=$((fs*56664/1024))
+	fi
+	ts=`vol_total_space ${volser}`
+	if [ $? -gt 0 ]; then
+		ts='?'
+	else
+		ts=$((ts*56664/1024))
+	fi
+	echo "${volser}" "${fs}/${ts}"
+done
+	
