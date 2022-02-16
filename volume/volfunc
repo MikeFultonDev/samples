@@ -41,6 +41,32 @@ vol_free_space() {
 }
 
 #
+# print out who is using a volume
+#
+
+vol_usage() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	ucb=`online_vols | grep ${vol} | awk ' { print $1; }'`
+	opercmd "d u,,alloc,${ucb},1"
+	return $?
+}
+
+vol_offline() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	opercmd "vary ${vol},offline"
+	return $?
+}
+
+vol_online() {
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+	opercmd "vary ${vol},online"
+	return $?
+}
+ 
+#
 # print out UCB and VOLSER for all online volumes
 #	
 online_vols() {
