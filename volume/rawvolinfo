@@ -1,0 +1,9 @@
+#!/bin/sh
+tmp=$(mvstmp `hlq`)
+drm -f ${tmp}
+dtouch -tseq -rvb -l255 ${tmp}
+rawvolout=`echo ' DCOLLECT NOD OFILE(ODS) VOLUMES(*)' | mvscmdauth --pgm=IDCAMS --ods=${tmp} --sysprint=* --sysin=stdin`
+if [ $? -gt 4 ]; then
+	echo "${rawvolout}" >&2
+fi
+echo ${tmp}
