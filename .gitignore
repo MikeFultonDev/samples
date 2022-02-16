@@ -20,3 +20,6 @@ sms/bin/smsmc
 sms/bin/smsacs
 sms/test/*.o
 sms/test/zoautest
+volume/*.o
+volume/volinfo
+volume/*.lst

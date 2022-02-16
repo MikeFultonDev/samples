@@ -81,6 +81,7 @@ int main(int argc, char* argv[]) {
 		++tc;
 		if (volrec.hdr.dcurctyp[0] == 'V') { 
 			++vc;
+			printf("%6.6s %d %d %X\n", volrec.dcvvolsr, volrec.dcvfresp, volrec.dcvalloc, volrec.dcvdvnum);
 		}
 	}
 	printf("read %d records. read %d volume records\n", tc, vc);
