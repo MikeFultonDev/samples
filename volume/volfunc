@@ -3,6 +3,21 @@
 #
 
 #
+# Initialize volume for subsequent use
+#
+init_volume() {
+	if [ $# -ne 2 ]; then
+		echo "init_volume requires ucb and volser" >&2
+		return 8
+	fi
+	ucb=$(echo ${1} | tr '[:lower:]' '[:upper:]')
+	volser=$(echo ${2} | tr '[:lower:]' '[:upper:]')
+	mvscmdauth --pgm=ICKDSF --args='NOREPLYU,FORCE' --sysprint=* --sysin=stdin <<zz
+  INIT UNIT(${ucb}) NOVERIFY VOLID(${volser}) VTOC(0,1,14)
+zz
+	return $?
+}
+#
 # List the VTOC for a particular volume.
 # IEHLIST requires that you provide a DDname for the volume, so we specify the VTOC
 #
