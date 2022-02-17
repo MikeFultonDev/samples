@@ -56,8 +56,6 @@ int main(int argc, char* argv[]) {
 	FILE* fp;
 	struct VolRec volrec;
 	int rc;
-	int tc;
-	int vc;
 
 	if (argc != 2) {
 		fprintf(stderr, "Syntax: %s <dataset>\n");
@@ -75,15 +73,10 @@ int main(int argc, char* argv[]) {
 		exit(16);
 	}
 
-	tc=0;
-	vc=0;
 	while ((rc = fread(&volrec, sizeof(volrec), 1, fp)) > 0) {
-		++tc;
 		if (volrec.hdr.dcurctyp[0] == 'V') { 
-			++vc;
 			printf("%6.6s %d %d %X\n", volrec.dcvvolsr, volrec.dcvfresp, volrec.dcvalloc, volrec.dcvdvnum);
 		}
 	}
-	printf("read %d records. read %d volume records\n", tc, vc);
 	return 0;
 }

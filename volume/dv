@@ -19,30 +19,39 @@ fi
 
 if [ $# -gt 0 ]; then
 	volsers=$(echo $* | tr '[:lower:]' '[:upper:]')
+	volsers=" ${volsers} "
 else
-	vols=`online_vols`
-	rc=$?
-	if [ $rc -gt 0 ]; then
-		echo "Unable to obtain online volumes" >&2
-		exit $rc
-	fi
-
-	volsers=`echo "${vols}" | awk ' { print $2; }'`
+	volsers=""
 fi
 
-for volser in ${volsers}; do
-	fs=`vol_free_space ${volser}`
-	if [ $? -gt 0 ]; then 
-		fs='?'
-	else
-		fs=$((fs*56664/1024))
+tmp=$(mvstmp `hlq`)
+drm -f ${tmp}
+dtouch -tseq -rvb -l255 ${tmp}
+rawvolout=`echo ' DCOLLECT NOD OFILE(ODS) VOLUMES(*)' | mvscmdauth --pgm=IDCAMS --ods=${tmp} --sysprint=* --sysin=stdin`
+if [ $? -gt 4 ]; then
+	echo "${rawvolout}" >&2
+fi
+
+lines=`${MY_DIR}/volinfo "//'${tmp}'"`
+rc=$?
+if [ $rc -gt 0 ]; then
+	exit $rc
+fi
+drm -f ${tmp}
+if [ "${volsers}" = "" ]; then
+	echo "${lines}"
+	exit 0
+fi
+
+#
+# Only print out volumes that match list given
+#
+echo "${lines}" | while IFS= read -r line; do
+	volser=${line%%\ *}
+	check=${volsers%%\ ${volser}\ *} 
+	if [ "${check}" != "${volsers}" ]; then
+		echo "${line}"
 	fi
-	ts=`vol_total_space ${volser}`
-	if [ $? -gt 0 ]; then
-		ts='?'
-	else
-		ts=$((ts*56664/1024))
-	fi
-	echo "${volser}" "${fs}/${ts}"
 done
+exit 0
 	
