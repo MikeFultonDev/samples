@@ -41,8 +41,12 @@ struct VolRec {
 	char dcvsgtcl[30]; 
 
 	char dcvdptyp[8];
+
+	char dcvtrpct;
+	int dcvcylmg:1;
+	int:7; 
 	
-	char dcvmoredetails[28];
+	char dcvmoredetails[26];
 
 	unsigned int dcvfcyls;
 	unsigned int dcvftrks;
@@ -56,6 +60,7 @@ int main(int argc, char* argv[]) {
 	FILE* fp;
 	struct VolRec volrec;
 	int rc;
+	char unit[2] = { 'K', 'M' };
 
 	if (argc != 2) {
 		fprintf(stderr, "Syntax: %s <dataset>\n");
@@ -75,7 +80,8 @@ int main(int argc, char* argv[]) {
 
 	while ((rc = fread(&volrec, sizeof(volrec), 1, fp)) > 0) {
 		if (volrec.hdr.dcurctyp[0] == 'V') { 
-			printf("%6.6s %d %d %X\n", volrec.dcvvolsr, volrec.dcvfresp, volrec.dcvalloc, volrec.dcvdvnum);
+			char u = unit[volrec.dcvcylmg];
+			printf("%6.6s %d%c %d%c %X\n", volrec.dcvvolsr, volrec.dcvfresp, u, volrec.dcvalloc, u, volrec.dcvdvnum);
 		}
 	}
 	return 0;

@@ -17,6 +17,17 @@ fi
 
 . "${volfunc}"
 
+if [ "$1" = "-?" ] || [ "$1" = "-h" ]; then
+	echo "Syntax:" >&2
+	echo "  $0 [<volser>]*" >&2
+	echo "where:" >&2
+	echo "  <volser> : volume serial number to dislay information about" >&2
+	echo "  If no <volser> specified, display all volumes" >&2 
+	echo "Output format:" >&2
+	echo "<volser> <free space> <allocated space> <device number>" >&2
+	exit 16
+fi
+
 if [ $# -gt 0 ]; then
 	volsers=$(echo $* | tr '[:lower:]' '[:upper:]')
 	volsers=" ${volsers} "
