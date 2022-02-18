@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+
 #pragma pack(full)
 struct DCollectHeader {
 	unsigned short dculeng;
