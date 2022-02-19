@@ -10,7 +10,8 @@ if [ $# -ne 1 ]; then
 	exit 4
 fi
 id=$1
-
+unixid=$(echo $* | tr '[:upper:]' '[:lower:]')
+mvsid=$(echo $* | tr '[:lower:]' '[:upper:]')
 sshkey=''
 while read line
 do
@@ -38,72 +39,80 @@ if [ $? -gt 0 ]; then
 	fi
 fi	
 	
-addout=`tsocmd "adduser ${id} dfltgrp(zotgrp)" 2>/dev/null`
+addout=`tsocmd "adduser ${mvsid} dfltgrp(zotgrp)" 2>/dev/null`
 rc=$?
 if [ $rc -gt 0 ]; then
 	echo "${addout}" >&2
 	exit $rc
 fi
 
-altout=`tsocmd "altuser ${id} omvs(home(/u/${id}) program(/bin/sh) autouid)"`
+altout=`tsocmd "altuser ${mvsid} omvs(home(/u/${unixid}) program(/bin/sh) autouid)"`
 rc=$?
 if [ $rc -gt 0 ]; then
 	echo "${altout}" >&2
 	exit $rc
 fi
 
-mkdir -p "/u/${id}/.ssh"
+mkdir -p "/u/${unixid}/.ssh"
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Unable to make /u/${id} home directory" >&2
+	echo "Unable to make /u/${unixid} home directory" >&2
 	exit $rc
 fi
 
-echo "${sshkey}" > "/u/${id}/.ssh/authorized_keys"
+echo "${sshkey}" > "/u/${unixid}/.ssh/authorized_keys"
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Unable to copy ssh key to ${id} ssh directory" >&2
+	echo "Unable to copy ssh key to ${unixid} ssh directory" >&2
+	exit $rc
+fi
+chmod -R 700 "/u/${unixid}/.ssh"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to restrict who can read /u/${unixid}/.ssh directory" >&2
 	exit $rc
 fi
 
-chown -R "${id}:zotgrp" "/u/${id}"
+chown -R "${unixid}:zotgrp" "/u/${unixid}"
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Unable to change group of /u/${id} home directory" >&2
+	echo "Unable to change group of /u/${unixid} home directory" >&2
 	exit $rc
 fi
 
-zfsadm define -aggregate "ZFS.${id}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes USERS
-rc=$?
-if [ $rc -gt 0 ]; then
-	echo "Unable to allocate 15G file system for ZFS.${id} from volume USERS" >&2
-	exit $rc
-fi
-chmount -w /
-rc=$?
-if [ $rc -gt 0 ]; then
-	echo "Unable to chmount / to writable" >&2
-	exit $rc
-fi
-mkdir -p /${id}
-rc=$?
-if [ $rc -gt 0 ]; then
-	echo "Unable to make /${id} directory (personal work file system)" >&2
-	exit $rc
+if ! [ -d "/${unixid}" ]; then
+	zfsadm define -aggregate "ZFS.${mvsid}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes USERS
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to allocate 15G file system for ZFS.${mvsid} from volume USERS" >&2
+		exit $rc
+	fi
+	chmount -w /
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to chmount / to writable" >&2
+		exit $rc
+	fi
+	mkdir -p /${unixid}
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to make /${unixid} directory (personal work file system)" >&2
+		exit $rc
+	fi
+
+	mount -tzfs -f "ZFS.${mvsid}" "/${unixid}"
+	rc=$?
+	if [ $rc -gt 0 ]; then
+		echo "Unable to mount /${unixid} from ZFS.${mvsid}" >&2
+		exit $rc
+	fi
 fi
 
-mount -tzfs -f "ZFS.${id}" "/${id}"
+chown -R "${unixid}:zotgrp" "/${unixid}"
 rc=$?
 if [ $rc -gt 0 ]; then
-	echo "Unable to mount /${id} from ZFS.${id}" >&2
-	exit $rc
-fi
-
-chown -R "${id}:zotgrp" "/${id}"
-rc=$?
-if [ $rc -gt 0 ]; then
-	echo "Unable to change group of /${id} (personal work file system)" >&2
+	echo "Unable to change group of /${unixid} (personal work file system)" >&2
 	exit $rc
 fi
 	
-exit 4
+exit 0
