@@ -37,34 +37,6 @@ if [ $? -gt 0 ]; then
 		exit $rc
 	fi
 fi	
-
-if ! [ -d "/u/${id}" ]; then
-
-	set -x
-	zfsadm define -aggregate "ZFS.${id}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes USERS
-	rc=$?
-	if [ $rc -gt 0 ]; then
-		echo "Unable to allocate 15G file system for ZFS.${id} from volume USERS" >&2
-		exit $rc
-	fi
-
-	mkdir /u/${id}
-	rc=$?
-	if [ $rc -gt 0 ]; then
-		echo "Unable to make /u/${id} home directory" >&2
-		exit $rc
-	fi
-
-	mount -tzfs -f "ZFS.${id}" "/u/${id}"
-	rc=$?
-	if [ $rc -gt 0 ]; then
-		echo "Unable to mount /u/${id} from ZFS.${id}" >&2
-		exit $rc
-	fi
-	chown "${id}.zotgrp" "/u/${id}"
-fi
-	
-exit 4
 	
 addout=`tsocmd "adduser ${id} dfltgrp(zotgrp)" 2>/dev/null`
 rc=$?
@@ -72,3 +44,66 @@ if [ $rc -gt 0 ]; then
 	echo "${addout}" >&2
 	exit $rc
 fi
+
+altout=`tsocmd "altuser ${id} omvs(home(/u/${id}) program(/bin/sh) autouid)"`
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "${altout}" >&2
+	exit $rc
+fi
+
+mkdir -p "/u/${id}/.ssh"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to make /u/${id} home directory" >&2
+	exit $rc
+fi
+
+echo "${sshkey}" > "/u/${id}/.ssh/authorized_keys"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to copy ssh key to ${id} ssh directory" >&2
+	exit $rc
+fi
+
+chown -R "${id}:zotgrp" "/u/${id}"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to change group of /u/${id} home directory" >&2
+	exit $rc
+fi
+
+zfsadm define -aggregate "ZFS.${id}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes USERS
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to allocate 15G file system for ZFS.${id} from volume USERS" >&2
+	exit $rc
+fi
+chmount -w /
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to chmount / to writable" >&2
+	exit $rc
+fi
+mkdir -p /${id}
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to make /${id} directory (personal work file system)" >&2
+	exit $rc
+fi
+
+mount -tzfs -f "ZFS.${id}" "/${id}"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to mount /${id} from ZFS.${id}" >&2
+	exit $rc
+fi
+
+chown -R "${id}:zotgrp" "/${id}"
+rc=$?
+if [ $rc -gt 0 ]; then
+	echo "Unable to change group of /${id} (personal work file system)" >&2
+	exit $rc
+fi
+	
+exit 4
