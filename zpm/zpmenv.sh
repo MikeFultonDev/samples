@@ -30,7 +30,5 @@ else
 	export _TAG_REDIR_IN=txt
 	export _TAG_REDIR_OUT=txt
 
-	export PATH=/usr/lpp/IBM/zpm/package-manager/bin:$PATH
-
 	. /usr/lpp/IBM/zpm/golang/1.17.0.1/etc/envsetup
 fi
