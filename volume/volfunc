@@ -101,3 +101,16 @@ crtzfs() {
 	zfsadm define -aggregate ${ds} -dataclas dceattr -storageclas scnosms -megabytes ${meg} -volumes ${volser}
 	return $?
 }
+
+mntzfs() {
+        if [ $# -ne 2 ]; then
+	        echo "mntzfs requires ZFS dataset, directory to mount to" >&2
+                return 8
+	fi
+        ds=$(echo ${1} | tr '[:lower:]' '[:upper:]')
+        dir="${2}"
+
+	mount -t zfs -f "${ds}" "${dir}"
+	return $?
+}
+
