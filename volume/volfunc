@@ -88,3 +88,16 @@ online_vols() {
 	opercmd 'd u,dasd,online,,65536' | tail +5 | sed '$d' | cut -c 44-48,68-74
 	return $?
 }
+
+crtzfs() {
+        if [ $# -ne 3 ]; then
+	        echo "crtzfs requires ZFS dataset, volser to allocate from, and size (in megabytes)" >&2
+                return 8
+	fi
+        ds=$(echo ${1} | tr '[:lower:]' '[:upper:]')
+        volser=$(echo ${2} | tr '[:lower:]' '[:upper:]')
+        meg=$3
+
+	zfsadm define -aggregate ${ds} -dataclas dceattr -storageclas scnosms -megabytes ${meg} -volumes ${volser}
+	return $?
+}
