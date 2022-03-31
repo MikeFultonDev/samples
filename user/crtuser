@@ -1,22 +1,29 @@
 #!/bin/sh
 #
-# Create a new user with a 20G HOME file system, no TSO access, 
+# Create a new user with a 15G HOME file system, no TSO access, 
 # and no password, specifying ssh public key to use from stdin
 #
-if [ $# -ne 1 ]; then
-	echo "Syntax: crtuser <userid>" >&2
-	echo "  where <userid> is an 7 character or less username" >&2
+set -x
+if [ $# -lt 1 ]; then
+	echo "Syntax: crtuser <userid> [<volser>]" >&2
+	echo "  where <userid> is a 7 character or less username" >&2
+	echo "  and <volser> is a 6 character or less volser to user (defaults to USERS)" >&2
 	echo "  and the ssh public key to be used is passed in via stdin" >&2
 	exit 4
 fi
 id=$1
-unixid=$(echo $* | tr '[:upper:]' '[:lower:]')
-mvsid=$(echo $* | tr '[:lower:]' '[:upper:]')
+unixid=$(echo $1 | tr '[:upper:]' '[:lower:]')
+mvsid=$(echo $1 | tr '[:lower:]' '[:upper:]')
 sshkey=''
 while read line
 do
 	sshkey="${sshkey}${line}"
 done
+if [ $# -eq 1 ]; then
+	volser="USERS"
+else
+	volser=$2
+fi
 
 tsocmd "rlist facility bpx.next.user" >/dev/null 2>/dev/null
 if [ $? -gt 0 ]; then
@@ -81,10 +88,10 @@ if [ $rc -gt 0 ]; then
 fi
 
 if ! [ -d "/${unixid}" ]; then
-	zfsadm define -aggregate "ZFS.${mvsid}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes USERS
+	zfsadm define -aggregate "ZFS.${mvsid}" -dataclas dceattr -storageclas scnosms -megabytes 15000 -volumes ${volser}
 	rc=$?
 	if [ $rc -gt 0 ]; then
-		echo "Unable to allocate 15G file system for ZFS.${mvsid} from volume USERS" >&2
+		echo "Unable to allocate 15G file system for ZFS.${mvsid} from volume ${volser}" >&2
 		exit $rc
 	fi
 	chmount -w /

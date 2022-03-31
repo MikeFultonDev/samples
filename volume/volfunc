@@ -1,13 +1,18 @@
 #
 # meant to be sourced to provide functions
 #
+ME="./volfunc"
+if ! [ -f "${ME}" ]; then
+	echo "Need to source from the volfunc directory" >&2
+	return 8
+fi
 
 #
 # Initialize volume for subsequent use
 #
-init_volume() {
+vol_init() {
 	if [ $# -ne 2 ]; then
-		echo "init_volume requires ucb and volser" >&2
+		echo "vol_init requires ucb and volser" >&2
 		return 8
 	fi
 	ucb=$(echo ${1} | tr '[:lower:]' '[:upper:]')
@@ -17,11 +22,16 @@ init_volume() {
 zz
 	return $?
 }
+
 #
 # List the VTOC for a particular volume.
 # IEHLIST requires that you provide a DDname for the volume, so we specify the VTOC
 #
-list_volume() {
+vol_list() {
+	if [ $# -ne 1 ]; then
+		echo "vol_list requires volser to list" >&2
+		return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
 	volds="SYS1.VVDS.V"${vol}
@@ -30,10 +40,50 @@ list_volume() {
 	return $?
 }
 
+dev_vol() {
+	if [ $# -ne 1 ]; then
+		echo "dev_vol requires device number to print volser for" >&2
+		return 8
+	fi
+	dev="$1"
+	dev=$(echo ${dev} | tr '[:lower:]' '[:upper:]')
+
+	info=`opercmd "display u,dasd,online,${dev},1"`
+	echo "${info}" | grep 'IEE455I' >/dev/null
+	if [ $? -eq 0 ]; then
+		echo "Device ${dev} not online" >&2
+		return 8
+	fi
+	echo "${info}" | tail +5 | cut -c 68-74 | tr -d ' '
+	return $?
+}
+
+vol_dev() {
+	if [ $# -ne 1 ]; then
+		echo "vol_dev requires volser to print device number for" >&2
+		return 8
+	fi
+	vol="$1"
+	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
+
+	info=`opercmd "display u,vol=${vol}"`
+	echo "${info}" | grep 'IEE455I' >/dev/null
+	if [ $? -eq 0 ]; then
+		echo "VOLSER ${vol} not online" >&2
+		return 8
+	fi
+	echo "${info}" | tail +5 | cut -c 44-48 | tr -d ' '
+	return $?
+}
+	
 #
 # print out the volume total space (in cylinders)
 #
 vol_total_space() {
+	if [ $# -ne 1 ]; then
+		echo "vol_total_space requires volser to check" >&2
+		return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
 	opercmd "devserv qd,vol=${vol},totalcyl" | tail -1 | awk '{ print $7; }'
@@ -44,9 +94,13 @@ vol_total_space() {
 # print out the volume free space (in cylinders)
 #
 vol_free_space() {
+	if [ $# -ne 1 ]; then
+		echo "vol_free_space requires volser to check" >&2
+		return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
-	details=`list_volume ${vol}`
+	details=`vol_list ${vol}`
 	rc=$?
 	if [ $rc -gt 0 ]; then
 		return $rc
@@ -60,6 +114,10 @@ vol_free_space() {
 #
 
 vol_usage() {
+	if [ $# -ne 1 ]; then
+		echo "vol_usage requires volser to check" >&2
+		return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
 	ucb=`online_vols | grep ${vol} | awk ' { print $1; }'`
@@ -68,23 +126,56 @@ vol_usage() {
 }
 
 vol_offline() {
+        if [ $# -ne 1 ]; then
+	        echo "vol_offline requires volser to vary offline" >&2
+                return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
-	opercmd "vary ${vol},offline"
+	dev=`vol_dev ${vol}`
+	if [ $? -eq 0 ]; then
+		opercmd "vary ${dev},offline"
+	fi
 	return $?
 }
 
-vol_online() {
+dev_offline() {
+        if [ $# -ne 1 ]; then
+	        echo "dev_offline requires device numberr to vary offline" >&2
+                return 8
+	fi
+	dev="$1"
+	dev=$(echo ${dev} | tr '[:lower:]' '[:upper:]')
+	opercmd "vary ${dev},offline"
+	return $?
+}
+
+dev_online() {
+        if [ $# -ne 1 ]; then
+	        echo "dev_online requires device number to vary online" >&2
+                return 8
+	fi
+	dev="$1"
+	dev=$(echo ${dev} | tr '[:lower:]' '[:upper:]')
+	opercmd "vary ${dev},online"
+	return $?
+}
+
+vol_defrag() {
+        if [ $# -ne 1 ]; then
+	        echo "vol_defrag requires volser to defragment" >&2
+                return 8
+	fi
 	vol="$1"
 	vol=$(echo ${vol} | tr '[:lower:]' '[:upper:]')
-	opercmd "vary ${vol},online"
+	echo "  DEFRAG DDNAME(DASD)" | mvscmdauth --pgm=adrdssu --sysprint=* --dasd=${vol},vol --sysin=stdin
 	return $?
 }
  
 #
-# print out UCB and VOLSER for all online volumes
+# print out device number and VOLSER for all online volumes
 #	
-online_vols() {
+vols_online() {
 	opercmd 'd u,dasd,online,,65536' | tail +5 | sed '$d' | cut -c 44-48,68-74
 	return $?
 }
@@ -98,7 +189,10 @@ crtzfs() {
         volser=$(echo ${2} | tr '[:lower:]' '[:upper:]')
         meg=$3
 
-	zfsadm define -aggregate ${ds} -dataclas dceattr -storageclas scnosms -megabytes ${meg} -volumes ${volser}
+	dev=`vol_dev ${volser}`
+	if [ $? -eq 0 ]; then
+		zfsadm define -aggregate ${ds} -dataclas dceattr -storageclas scnosms -megabytes ${meg} -volumes ${volser}
+	fi
 	return $?
 }
 
@@ -114,3 +208,6 @@ mntzfs() {
 	return $?
 }
 
+
+echo 'Functions: '
+grep '() {' "${ME}" | tr -d '()\ {' | sed '$d' # print out functions in this file by looking for '() {' and delete this line
