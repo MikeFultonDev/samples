@@ -28,7 +28,7 @@ cloud_login() {
   fi
 }
 
-create_secrets_manager() {
+create_secrets_manager_group() {
   if ! ibmcloud plugin show secrets-manager >/dev/null 2>&1; then
     ibmcloud plugin install secrets-manager
   fi
@@ -38,7 +38,7 @@ create_secrets_manager() {
   if [ "${SERVICE_STATE}" != "active" ]; then
     echo "Unable to access secrets-manager-instance ${SECRETS_MANAGER_INSTANCE} in group ${GROUP}. Create this instance by going to: " >&2
     echo "  Dashboard / Create Resource / Catalog / Secrets Manager / Create with Service name ${SECRETS_MANAGER_INSTANCE} and resource group ${GROUP}" >&2
-    exit 4
+    return 4
   fi
 
   SECRETS_MANAGER_INSTANCE_ID=`echo "${SECRETS_MANAGER_RAW}" | grep 'GUID:' | awk ' { print $2; }'`
@@ -46,12 +46,16 @@ create_secrets_manager() {
   export SECRETS_MANAGER_URL="https://${SECRETS_MANAGER_INSTANCE_ID}.${REGION}.secrets-manager.appdomain.cloud"
 
   SECRET_GROUP_ID=`ibmcloud secrets-manager secret-groups | grep "${SECRET_GROUP}" | awk ' { print $2; }'`
+  rc=$?
   if [ "${SECRET_GROUP_ID}" = "" ]; then
     SECRET_GROUP_RESOURCE='{"name": "'${SECRET_GROUP}'", "description": "'${SECRET_GROUP_DESC}'"}'
     if ! ibmcloud secrets-manager secret-group-create --resources="[${SECRET_GROUP_RESOURCE}]" >/dev/null 2>&1 ; then
       echo "Unable to create secret group ${SECRET_GROUP_RESOURCE}" >&2
-      exit 4
+      return 4
     fi
     SECRET_GROUP_ID=`ibmcloud secrets-manager secret-groups | grep "${SECRET_GROUP}" | awk ' { print $2; }'`
+    rc=$?
   fi
+  echo "${SECRET_GROUP_ID}"
+  return $rc
 }

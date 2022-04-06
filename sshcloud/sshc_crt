@@ -17,7 +17,7 @@ CLIENT="$1"
 SERVER="$2"
 
 MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
-CLOUD_FN="${MYDIR}/cloud.fn"
+CLOUD_FN="${MYDIR}/sshc.fn"
 
 if [ -f "${CLOUD_FN}" ]; then
   . "${CLOUD_FN}"
@@ -29,17 +29,14 @@ if ! cloud_login ; then
   exit $?
 fi
 
-if ! create_secrets_manager ; then
+if ! secret_group=$( create_secrets_manager_group ); then
   exit $?
 fi
 
-set -x
-
-privatekey='My Private Key'
 publickey='My Public Key'
 date='Creation Date'
 Passphrase='My Passphrase'
 
-SECRET_RESOURCE='[{"name": "'${CLIENT}_${SERVER}'", "description": "ssh key pair", "secret_group_id": "'${SECRET_GROUP_ID}'",  "payload": { "private":"'${privatekey}'", "public":"'${publickey}'", "created":"'${date}'", "bit strength":"4096", "Format":"rsa", "Passphrase":"'${passphrase}'" }}]'
+SECRET_RESOURCE='[{"name": "'${CLIENT}_${SERVER}'", "description": "ssh key pair", "secret_group_id": "'${secret_group}'",  "payload": { "private":"'${privatekey}'", "public":"'${publickey}'", "created":"'${date}'", "bit strength":"4096", "Format":"rsa", "Passphrase":"'${passphrase}'" }}]'
 
 ibmcloud secrets-manager secret-create --secret-type=kv --resources="${SECRET_RESOURCE}"
