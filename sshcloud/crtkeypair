@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Create a key pair, send it to the IBM Cloud Secrets Manager, then delete it
+#
+set -x
+region='us-south'
+group='zotrg'
+if ! ibmcloud account show >/dev/null 2>&1; then
+  oldset=${-//[^x]/}
+
+  set +x # Never show tracing of password
+
+  echo "Enter your IBM Cloud one time passcode: "
+  read -s password
+  ibmcloud login -r "${region}" -g "${group}" -a https://cloud.ibm.com -u passcode -p "${password}"
+  password=''
+
+  if [[ -n "${oldset}" ]]; then
+    set -x # Turn on tracing again if it was turned off
+  fi
+fi
+
+if ! ibmcloud plugin show secrets-manager >/dev/null 2>&1; then
+  ibmcloud plugin install secrets-manager
+fi
+
