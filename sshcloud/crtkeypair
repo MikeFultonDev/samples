@@ -13,6 +13,9 @@ if [ $# -lt 2 ]; then
   exit 4
 fi
 
+CLIENT="$1"
+SERVER="$2"
+
 set +x
 REGION='us-south'
 GROUP='zotrg'
@@ -60,8 +63,15 @@ if [ "${SECRET_GROUP_ID}" = "" ]; then
     echo "Unable to create secret group ${SECRET_GROUP_RESOURCE}" >&2
     exit 4
   fi
+  SECRET_GROUP_ID=`ibmcloud secrets-manager secret-groups | grep "${SECRET_GROUP}" | awk ' { print $2; }'`
 fi
 
+privatekey='My Private Key'
+publickey='My Public Key'
+date='Creation Date'
+Passphrase='My Passphrase'
+
 set -x
+SECRET_RESOURCE='[{"name": "'${CLIENT}_${SERVER}'", "description": "ssh key pair", "secret_group_id": "'${SECRET_GROUP_ID}'",  "payload": { "private":"'${privatekey}'", "public":"'${publickey}'", "created":"'${date}'", "bit strength":"4096", "Format":"rsa", "Passphrase":"'${passphrase}'" }}]'
 
-
+ibmcloud secrets-manager secret-create --secret-type=kv --resources="${SECRET_RESOURCE}"
