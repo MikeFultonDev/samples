@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Get a key pair from IBM Cloud Secrets Manager
+#
+
+if [ $# -lt 2 ]; then
+  echo "$0: get a key pair from the IBM Cloud Secrets Manager" >&2
+  echo "Syntax: $0 <client> <server>" >&2
+  echo "  where <client> is the name of the ssh 'client' side" >&2
+  echo "  and <server> is the name of the ssh 'server' side" >&2
+  echo "  where you will use the private key on the client side" >&2
+  echo "  and you will use the public key on the server side" >&2
+  exit 4
+fi
+
+CLIENT="$1"
+SERVER="$2"
+
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/sshc.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi
+
+set +x
+
+if ! cloud_login ; then
+  exit $?
+fi
+
+group=`create_secrets_manager_group`
+if [ $? -gt 0 ] ; then
+  exit 4
+fi
+
+secret_id=`ibmcloud secrets-manager all-secrets --search "${CLIENT}_${SERVER}" --sort-by name --limit 1 --groups "${group}" | tail -1 | awk '{ print $2; }'`
+rc=$?
+if [ $rc -eq 0 ]; then
+  ibmcloud secrets-manager secret --secret-type "kv" --id "${secret_id}" --output json
+fi

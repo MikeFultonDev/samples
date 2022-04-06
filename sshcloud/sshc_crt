@@ -1,0 +1,42 @@
+#!/bin/sh
+#
+# Create a key pair, send it to the IBM Cloud Secrets Manager
+#
+
+if [ $# -lt 2 ]; then
+  echo "$0: create a key pair and store it in the IBM Cloud Secrets Manager" >&2
+  echo "Syntax: $0 <client> <server>" >&2
+  echo "  where <client> is the name of the ssh 'client' side" >&2
+  echo "  and <server> is the name of the ssh 'server' side" >&2
+  echo "  where you will use the private key on the client side" >&2
+  echo "  and you will use the public key on the server side" >&2
+  exit 4
+fi
+
+CLIENT="$1"
+SERVER="$2"
+
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/sshc.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi
+
+set +x
+
+if ! cloud_login ; then
+  exit $?
+fi
+
+if ! secret_group=$( create_secrets_manager_group ); then
+  exit $?
+fi
+
+publickey='My Public Key'
+date='Creation Date'
+Passphrase='My Passphrase'
+
+SECRET_RESOURCE='[{"name": "'${CLIENT}_${SERVER}'", "description": "ssh key pair", "secret_group_id": "'${secret_group}'",  "payload": { "private":"'${privatekey}'", "public":"'${publickey}'", "created":"'${date}'", "bit strength":"4096", "Format":"rsa", "Passphrase":"'${passphrase}'" }}]'
+
+ibmcloud secrets-manager secret-create --secret-type=kv --resources="${SECRET_RESOURCE}"
