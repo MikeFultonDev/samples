@@ -16,62 +16,30 @@ fi
 CLIENT="$1"
 SERVER="$2"
 
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/cloud.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi
+
 set +x
-REGION='us-south'
-GROUP='zotrg'
 
-SECRETS_MANAGER_INSTANCE="zotsm"
-SECRET_GROUP="zotsg"
-SECRET_GROUP_DESC="z/OS Open Tools Secret Group"
-
-
-if ! ibmcloud account show >/dev/null 2>&1; then
-  oldset=${-//[^x]/}
-
-  set +x # Never show tracing of password
-
-  echo "Enter your IBM Cloud one time passcode: "
-  read -s password
-  ibmcloud login -r "${REGION}" -g "${GROUP}" -a https://cloud.ibm.com -u passcode -p "${password}"
-  password=''
-
-  if [[ -n "${oldset}" ]]; then
-    set -x # Turn on tracing again if it was turned off
-  fi
+if ! cloud_login ; then
+  exit $?
 fi
 
-if ! ibmcloud plugin show secrets-manager >/dev/null 2>&1; then
-  ibmcloud plugin install secrets-manager
+if ! create_secrets_manager ; then
+  exit $?
 fi
 
-SECRETS_MANAGER_RAW=$( ibmcloud resource service-instance "${SECRETS_MANAGER_INSTANCE}" -g "${GROUP}" )
-SERVICE_STATE=$( echo "${SECRETS_MANAGER_RAW}" | grep 'State:' | awk '{ print $2; }' )
-if [ "${SERVICE_STATE}" != "active" ]; then
-  echo "Unable to access secrets-manager-instance ${SECRETS_MANAGER_INSTANCE} in group ${GROUP}. Create this instance by going to: " >&2
-  echo "  Dashboard / Create Resource / Catalog / Secrets Manager / Create with Service name ${SECRETS_MANAGER_INSTANCE} and resource group ${GROUP}" >&2
-  exit 4
-fi
-
-SECRETS_MANAGER_INSTANCE_ID=`echo "${SECRETS_MANAGER_RAW}" | grep 'GUID:' | awk ' { print $2; }'`
-
-export SECRETS_MANAGER_URL="https://${SECRETS_MANAGER_INSTANCE_ID}.${REGION}.secrets-manager.appdomain.cloud"
-
-SECRET_GROUP_ID=`ibmcloud secrets-manager secret-groups | grep "${SECRET_GROUP}" | awk ' { print $2; }'`
-if [ "${SECRET_GROUP_ID}" = "" ]; then
-  SECRET_GROUP_RESOURCE='{"name": "'${SECRET_GROUP}'", "description": "'${SECRET_GROUP_DESC}'"}'
-  if ! ibmcloud secrets-manager secret-group-create --resources="[${SECRET_GROUP_RESOURCE}]" >/dev/null 2>&1 ; then
-    echo "Unable to create secret group ${SECRET_GROUP_RESOURCE}" >&2
-    exit 4
-  fi
-  SECRET_GROUP_ID=`ibmcloud secrets-manager secret-groups | grep "${SECRET_GROUP}" | awk ' { print $2; }'`
-fi
+set -x
 
 privatekey='My Private Key'
 publickey='My Public Key'
 date='Creation Date'
 Passphrase='My Passphrase'
 
-set -x
 SECRET_RESOURCE='[{"name": "'${CLIENT}_${SERVER}'", "description": "ssh key pair", "secret_group_id": "'${SECRET_GROUP_ID}'",  "payload": { "private":"'${privatekey}'", "public":"'${publickey}'", "created":"'${date}'", "bit strength":"4096", "Format":"rsa", "Passphrase":"'${passphrase}'" }}]'
 
 ibmcloud secrets-manager secret-create --secret-type=kv --resources="${SECRET_RESOURCE}"
