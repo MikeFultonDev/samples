@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ "${CLIENT}" = "" ] || [ "${SERVER}" = "" ]; then
+  echo "Need to export CLIENT and SERVER before calling $0" >&2
+  exit 4
+fi
+lpass show --field="Passphrase" ssh/${CLIENT}^${SERVER}

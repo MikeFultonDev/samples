@@ -22,3 +22,5 @@ CLOUD_FN="${MYDIR}/sshlp.fn"
 if [ -f "${CLOUD_FN}" ]; then
   . "${CLOUD_FN}"
 fi
+
+lpass show --field="Public Key" ssh/${CLIENT}^${SERVER}

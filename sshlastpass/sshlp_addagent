@@ -1,0 +1,64 @@
+#!/bin/sh
+#
+# Get a key pair from LastPass and set up the ssh agent
+#
+
+if [ $# -lt 2 ]; then
+  echo "$0: get a key pair from LastPass and set up the ssh agent" >&2
+  echo "Syntax: $0 <client> <server>" >&2
+  echo "  where <client> is the name of the ssh 'client' side" >&2
+  echo "  and <server> is the name of the ssh 'server' side" >&2
+  exit 4
+fi
+
+export CLIENT="$1"
+export SERVER="$2"
+
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/sshlp.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi
+
+if ! private_key=$( lpass show --field="Private Key" ssh/${CLIENT}^${SERVER} ) ; then
+  echo "Unable to find ${CLIENT} ${SERVER}" >&2
+  exit 4
+fi
+
+if ! eval "$(ssh-agent -s)" >/dev/null 2>&1 ; then
+  echo "Unable to start ssh-agent" >&2
+  exit 4
+fi
+
+private_keydir="${TMPDIR}/$$ssh"
+private_keyfile="${private_keydir}/$$_priv"
+if ! mkdir -p "${private_keydir}" ; then
+  echo "Unable to make temporary directory to store private key" >&2
+  exit 4
+fi
+if ! printf "%s\n" "${private_key}" >"${private_keyfile}" ; then
+  echo "Unable to write private key to add" >&2
+  exit 4
+fi
+if ! chmod 0700 "${private_keydir}" ; then
+  echo "Unable to chmod private key directory to reduced settings" >&2
+  exit 4
+fi
+if ! chmod 0600 "${private_keyfile}" ; then
+  echo "Unable to chmod private key file to reduced settings" >&2
+  exit 4
+fi
+
+export SSH_ASKPASS="${MYDIR}/sshlp_passphrase" 
+export SSH_ASKPASS_REQUIRE=force
+
+if ! ssh-add "${private_keyfile}" >/dev/null 2>&1 ; then
+  echo "Unable to add private key to ssh-agent" >&2
+fi
+
+if ! rm -rf "${private_keydir}" ; then
+  echo "Unable to remove tempory private key file ${private_keyfile}. You should remove this yourself!" >&2
+  exit 4
+fi
+

@@ -4,7 +4,7 @@
 #
 
 if [ $# -lt 2 ]; then
-  echo "$0: create a key pair and store it in LastPzss" >&2
+  echo "$0: create a key pair and store it in LastPass" >&2
   echo "Syntax: $0 <client> <server>" >&2
   echo "  where <client> is the name of the ssh 'client' side" >&2
   echo "  and <server> is the name of the ssh 'server' side" >&2
@@ -31,7 +31,7 @@ fi
 tmp="$TMPDIR/$$_tmp"
 public_file="${tmp}.pub"
 private_file="${tmp}"
-if ! ssh-keygen -t rsa -b 4096 -N "${passphrase}" -f "${tmp}" ; then
+if ! ssh-keygen -t rsa -b 4096 -N "${passphrase}" -f "${tmp}" >/dev/null 2>&1 ; then
   echo "Unable to generate private/public ssh key pair" >&2
   exit 4
 fi
@@ -59,4 +59,4 @@ client: ${CLIENT} server: ${SERVER}
 zz
 )
 
-echo "${entry}" | lpass add --sync=now --non-interactive --note-type=ssh-key ssh/${CLIENT}^${SERVER}
+echo "${entry}" | lpass add --sync=now --non-interactive --note-type=ssh-key ssh/${CLIENT}^${SERVER} >/dev/null 2>&1
