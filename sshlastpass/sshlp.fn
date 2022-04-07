@@ -1,0 +1,21 @@
+#!/bin/sh
+
+export LASTPASS_USERID="yalarad@gmail.com"
+
+lastpass_login() {
+  if ! lpass status >/dev/null 2>&1; then
+    oldset=${-//[^x]/}
+
+    set +x # Never show tracing of password
+
+    lpass login "${LASTPASS_USERID}"
+    rc=$?
+
+    if [[ -n "${oldset}" ]]; then
+      set -x # Turn on tracing again if it was turned off
+    fi
+
+    return $rc
+  fi
+}
+

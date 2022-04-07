@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Get a key pair from LastPass
+#
+
+if [ $# -lt 2 ]; then
+  echo "$0: get a key pair from LastPass" >&2
+  echo "Syntax: $0 <client> <server>" >&2
+  echo "  where <client> is the name of the ssh 'client' side" >&2
+  echo "  and <server> is the name of the ssh 'server' side" >&2
+  echo "  where you will use the private key on the client side" >&2
+  echo "  and you will use the public key on the server side" >&2
+  exit 4
+fi
+
+CLIENT="$1"
+SERVER="$2"
+
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/sshlp.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi

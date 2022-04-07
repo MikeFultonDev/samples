@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# Create a key pair, send it to LastPass
+#
+
+if [ $# -lt 2 ]; then
+  echo "$0: create a key pair and store it in LastPzss" >&2
+  echo "Syntax: $0 <client> <server>" >&2
+  echo "  where <client> is the name of the ssh 'client' side" >&2
+  echo "  and <server> is the name of the ssh 'server' side" >&2
+  echo "  where you will use the private key on the client side" >&2
+  echo "  and you will use the public key on the server side" >&2
+  exit 4
+fi
+
+CLIENT="$1"
+SERVER="$2"
+
+MYDIR=$( cd $( dirname "$0" ) ; echo $PWD)
+CLOUD_FN="${MYDIR}/sshlp.fn"
+
+if [ -f "${CLOUD_FN}" ]; then
+  . "${CLOUD_FN}"
+fi
+
+if ! passphrase=$( lpass generate passphrase 20 ) ; then
+  echo "Unable to generate passphrase" >&2
+  exit 4
+fi
+
+tmp="$TMPDIR/$$_tmp"
+public_file="${tmp}.pub"
+private_file="${tmp}"
+if ! ssh-keygen -t rsa -b 4096 -N "${passphrase}" -f "${tmp}" ; then
+  echo "Unable to generate private/public ssh key pair" >&2
+  exit 4
+fi
+
+private_key=$( cat "${private_file}" )
+public_key=$( cat "${public_file}" )
+if ! rm "${private_file}" "${public_file}" ; then
+  echo "Unable to remove key files!! Keys not sent to LastPass!!" >&2
+  exit 4
+fi
+date=$( date "+%b %d %Y" )
+
+entry=$( cat << zz
+NoteType: SSH Key
+Language: en-US
+Bit Strength: 4096
+Format: rsa
+Passphrase: ${passphrase}
+Private Key: ${private_key}
+Public Key: ${public_key}
+Hostname: ${SERVER}
+Date: ${date}
+Notes:
+client: ${CLIENT} server: ${SERVER}
+zz
+)
+
+echo "${entry}" | lpass add --sync=now --non-interactive --note-type=ssh-key ssh/${CLIENT}^${SERVER}
