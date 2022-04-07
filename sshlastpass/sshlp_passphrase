@@ -1,4 +1,7 @@
 #!/bin/sh
+#
+# Simple script to feel the passphrase through to ssh from lastpass
+#
 if [ "${CLIENT}" = "" ] || [ "${SERVER}" = "" ]; then
   echo "Need to export CLIENT and SERVER before calling $0" >&2
   exit 4
