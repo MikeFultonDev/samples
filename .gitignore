@@ -23,3 +23,6 @@ sms/test/zoautest
 volume/*.o
 volume/volinfo
 volume/*.lst
+codepage/a2e
+codepage/e2a
+codepage/codepage.h
