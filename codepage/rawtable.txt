@@ -1,0 +1,256 @@
+00 	00 	NUL
+01 	01 	SOH
+02 	02 	STX
+03 	03 	ETX
+04 	1A 	SEL
+05 	09 	HT
+06 	1A 	RNL
+07 	7F 	DEL
+08 	1A 	GE
+09 	1A 	SPS
+0A 	1A 	RPT
+0B 	0B 	VT
+0C 	0C 	FF
+0D 	0D 	CR
+0E 	0E 	SO
+0F 	0F 	SI
+10 	10 	DLE
+11 	11 	DC1
+12 	12 	DC2
+13 	13 	DC3
+14 	1A 	RES/ENP
+15 	0A 	NL
+16 	08 	BS
+17 	1A 	POC
+18 	18 	CAN
+19 	19 	EM
+1A 	1A 	UBS
+1B 	1A 	CU1
+1C 	1C 	IFS
+1D 	1D 	IGS
+1E 	1E 	IRS
+1F 	1F 	ITB/IUS
+20 	1A 	DS
+21 	1A 	SOS
+22 	1A 	FS
+23 	1A 	WUS
+24 	1A 	BYP/INP
+25 	0A 	LF
+26 	17 	ETB
+27 	1B 	ESC
+28 	1A 	SA
+29 	1A 	SFE
+2A 	1A 	SM/SW
+2B 	1A 	CSP
+2C 	1A 	MFA
+2D 	05 	ENQ
+2E 	06 	ACK
+2F 	07 	BEL
+30 	1A 	 
+31 	1A 	 
+32 	16 	SYN
+33 	1A 	IR
+34 	1A 	PP
+35 	1A 	TRN
+36 	1A 	NBS
+37 	04 	EOT
+38 	1A 	SBS
+39 	1A 	IT
+3A 	1A 	RFF
+3B 	1A 	CU3
+3C 	14 	DC4
+3D 	15 	NAK
+3E 	1A 	 
+3F 	1A 	SUB
+40 	20 	(space)
+41 	1A 	RSP
+42 	1A 	 
+43 	1A 	 
+44 	1A 	 
+45 	1A 	 
+46 	1A 	 
+47 	1A 	 
+48 	1A 	 
+49 	1A 	 
+4A 	5B 	Â¢
+4B 	2E 	.
+4C 	3C 	<
+4D 	28 	(
+4E 	2B 	+
+4F 	21 	|
+50 	26 	&
+51 	1A 	 
+52 	1A 	 
+53 	1A 	 
+54 	1A 	 
+55 	1A 	 
+56 	1A 	 
+57 	1A 	 
+58 	1A 	 
+59 	1A 	 
+5A 	5D 	!
+5B 	24 	$
+5C 	2A 	*
+5D 	29 	)
+5E 	3B 	;
+5F 	5E 	â¥
+60 	2D 	-
+61 	2F 	/
+62 	1A 	 
+63 	1A 	 
+64 	1A 	 
+65 	1A 	 
+66 	1A 	 
+67 	1A 	 
+68 	1A 	 
+69 	1A 	 
+6A 	7C 	 
+6B 	2C 	â
+6C 	25 	 
+6D 	5F 	_
+6E 	3E 	>
+6F 	3F 	?
+70 	1A 	 
+71 	1A 	 
+72 	1A 	 
+73 	1A 	 
+74 	1A 	 
+75 	1A 	 
+76 	1A 	 
+77 	1A 	 
+78 	1A 	 
+79 	60 	 
+7A 	3A 	:
+7B 	23 	#
+7C 	40 	@
+7D 	27 	'
+7E 	3D 	=
+7F 	22 	"
+80 	1A 	 
+81 	61 	a
+82 	62 	b
+83 	63 	c
+84 	64 	d
+85 	65 	e
+86 	66 	f
+87 	67 	g
+88 	68 	h
+89 	69 	i
+8A 	1A 	 
+8B 	1A 	 
+8C 	1A 	 
+8D 	1A 	 
+8E 	1A 	 
+8F 	1A 	 
+90 	1A 	 
+91 	6A 	j
+92 	6B 	k
+93 	6C 	l
+94 	6D 	m
+95 	6E 	n
+96 	6F 	o
+97 	70 	p
+98 	71 	q
+99 	72 	r
+9A 	1A 	 
+9B 	1A 	 
+9C 	1A 	 
+9D 	1A 	 
+9E 	1A 	 
+9F 	1A 	 
+A0 	1A 	 
+A1 	7E 	â
+A2 	73 	s
+A3 	74 	t
+A4 	75 	u
+A5 	76 	v
+A6 	77 	w
+A7 	78 	x
+A8 	79 	y
+A9 	7A 	z
+AA 	1A 	 
+AB 	1A 	 
+AC 	1A 	 
+AD 	5B 	 
+AE 	1A 	 
+AF 	1A 	 
+B0 	1A 	 
+B1 	1A 	 
+B2 	1A 	 
+B3 	1A 	 
+B4 	1A 	 
+B5 	1A 	 
+B6 	1A 	 
+B7 	1A 	 
+B8 	1A 	 
+B9 	1A 	 
+BA 	1A 	 
+BB 	1A 	 
+BC 	1A 	 
+BD 	5D	 
+BE 	1A 	 
+BF 	1A 	 
+C0 	7B 	 
+C1 	41 	A
+C2 	42 	B
+C3 	43 	C
+C4 	44 	D
+C5 	45 	E
+C6 	46 	F
+C7 	47 	G
+C8 	48 	H
+C9 	49 	I
+CA 	1A 	 
+CB 	1A 	 
+CC 	1A 	 
+CD 	1A 	 
+CE 	1A 	 
+CF 	1A 	 
+D0 	7D 	 
+D1 	4A 	J
+D2 	4B 	K
+D3 	4C 	L
+D4 	4D 	M
+D5 	4E 	N
+D6 	4F 	O
+D7 	50 	P
+D8 	51 	Q
+D9 	52 	R
+DA 	1A 	 
+DB 	1A 	 
+DC 	1A 	 
+DD 	1A 	 
+DE 	1A 	 
+DF 	1A 	 
+E0 	5C 	\
+E1 	1A 	 
+E2 	53 	S
+E3 	54 	T
+E4 	55 	U
+E5 	56 	V
+E6 	57 	W
+E7 	58 	X
+E8 	59 	Y
+E9 	5A 	Z
+EA 	1A 	 
+EB 	1A 	 
+EC 	1A 	 
+ED 	1A 	 
+EE 	1A 	 
+EF 	1A 	 
+F0 	30 	0
+F1 	31 	1
+F2 	32 	2
+F3 	33 	3
+F4 	34 	4
+F5 	35 	5
+F6 	36 	6
+F7 	37 	7
+F8 	38 	8
+F9 	39 	9
+FA 	1A 	 
+FB 	1A 	 
+FC 	1A 	 
+FD 	1A 	 
+FE 	1A 	 
+FF 	1A

@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# a2eme : convert myself from ascii to ebcdic
+#
+if [ $# -ne 1 ]; then
+  echo "syntax: $0 <file> : convert <file> from ascii to ebcdic" >&2
+  exit 4
+fi
+me=$1
+
+tmp=$TMPDIR/a2e.$$
+
+if ! a2e <"${me}" >"${tmp}" ; then
+  echo "conversion failed" >&2
+  exit 4
+fi
+
+if ! mv "${tmp}" "${me}"; then
+  echo "unable to move temporary file to ${me}. file not updated" >&2
+  rm "${tmp}"
+  exit 4
+fi
+
