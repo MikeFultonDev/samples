@@ -51,7 +51,7 @@ fi
 # 2) after the iconv is done, the attributes will still be there (e.g. 'x' will be set if needed)
 #
 tmp=/tmp/ascii.$$
-cp $1 ${tmp}
+cp -p $1 ${tmp}
 if [ $? -gt 0 ]; then
 	echo "Unable to write temporary file to ${tmp}. File not converted" >&2
 	exit 16
