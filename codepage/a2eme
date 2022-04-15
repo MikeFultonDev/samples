@@ -1,6 +1,7 @@
 #!/bin/sh
 #
 # a2eme : convert myself from ascii to ebcdic
+# To convert a directory tree: find  . -type f -exec a2eme {} \;
 #
 if [ $# -ne 1 ]; then
   echo "syntax: $0 <file> : convert <file> from ascii to ebcdic" >&2
