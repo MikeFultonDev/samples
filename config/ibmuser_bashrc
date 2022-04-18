@@ -1,0 +1,48 @@
+#!/bin/sh
+set -o emacs
+
+df | grep /var/zpm >/dev/null
+if [ $? -gt 0 ]; then
+	mount -tzfs -fZFS.ZPMDATA /var/zpm
+	if [ $? -gt 0 ]; then
+		echo "mount of /var/zpm failed" >&2
+	else
+		echo "remounted /var/zpm"
+	fi
+
+fi
+
+df | grep /usr/lpp/IBM/zpm >/dev/null
+if [ $? -gt 0 ]; then
+	mount -tzfs -fZFS.ZPMCODE /usr/lpp/IBM/zpm
+	if [ $? -gt 0 ]; then
+		echo "mount of /usr/lpp/IBM/zpm failed" >&2
+	else
+		echo "remounted /usr/lpp/IBM/zpm"
+	fi
+fi
+
+df | grep /usr/bin/IBM >/dev/null
+if [ $? -gt 0 ]; then
+	mount -tzfs -fZFS.IBMTOOLS /usr/bin/IBM
+	if [ $? -gt 0 ]; then
+		echo "mount of /usr/bin/IBM failed" >&2
+	else
+		echo "remounted /usr/bin/IBM"
+	fi
+fi
+
+
+users='fultonm zpm jenkins'
+for user in $users; do
+	ucuser=$(echo "$user" | tr '[:lower:]' '[:upper:]')
+	df | grep "^/${user}" >/dev/null
+	if [ $? -gt 0 ]; then
+		mount -tzfs -fZFS.${ucuser} /${user}
+		if [ $? -gt 0 ]; then
+			echo "mount of /${user} failed" >&2
+		else
+			echo "remounted /${user}"
+		fi
+	fi
+done
