@@ -1,0 +1,11 @@
+#!/bin/sh
+if [ $# -eq 1 ]; then
+	if ! [ -e "$1" ]; then	
+		# 
+		# Make the file ascii
+		#
+		touch "$1"
+		chtag -tcISO8859-1 "$1"
+	fi
+fi
+/bin/vi $*
