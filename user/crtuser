@@ -3,7 +3,7 @@
 # Create a new user with a 15G HOME file system, no TSO access, 
 # and no password, specifying ssh public key to use from stdin
 #
-set -x
+#set -x
 if [ $# -lt 1 ]; then
 	echo "Syntax: crtuser <userid> [<volser>]" >&2
 	echo "  where <userid> is a 7 character or less username" >&2
