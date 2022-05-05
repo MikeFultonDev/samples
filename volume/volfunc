@@ -225,6 +225,17 @@ mntzfs() {
 	return $?
 }
 
+#
+# automntzfs: add the file system so it will be mounted on IPL the same way it is currently mount
+#             a backup file will be written to $TMPDIR/<member> of the original file
+#
+automntzfs() {
+        if [ $# -ne 2 ]; then
+	        echo "Syntax: automntzfs <xx> <directory>" >&2
+	        echo "automntzfs requires 'xx' of BPXPRMxx member to be updated and <directory> of already mounted file system" >&2
+                return 8
+	fi
+}
 
 echo 'Functions: '
 grep '() {' "${ME}" | tr -d '()\ {' | sed '$d' # print out functions in this file by looking for '() {' and delete this line
