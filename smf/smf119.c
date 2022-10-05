@@ -20,6 +20,8 @@
 #define __IPV6
 #include "ezasmf.h"
 
+#define VERBOSE 1
+
 struct SMF119SSH_LF {
     char SMF119SSH_LFRIP[16]; /* Remote IP address */
     char SMF119SSH_LFLIP[16]; /* Local IP address */
@@ -230,6 +232,7 @@ static int process(struct Smf119Header *hdr, FILE* fp)
     struct SMF119Ident *ident;
     struct SMF119AP_TT *term;
     struct SMF119SSH_LF *login;
+    struct SMF119SSH_LF *failure;
     char resname[9];
     char* buf = (char*) hdr;
     int processed = 0;
@@ -250,11 +253,19 @@ static int process(struct Smf119Header *hdr, FILE* fp)
             }
             processed = 1;
             break;
+        case SMF119HDST_SSH94:
         case SMF119HDST_SSH95:
+        case SMF119HDST_SSH98:
             login = (struct SMF119SSH_LF *) (buf + sds->SMF119S2Off);
             printHeader(hdr, fp);
             printIdent(ident, fp);
             printLogin(login, fp);
+            processed = 1;
+            break;
+        case SMF119HDST_SSH96:
+        case SMF119HDST_SSH97:
+            printHeader(hdr, fp);
+            printIdent(ident, fp);
             processed = 1;
             break;
         default:
@@ -273,22 +284,19 @@ int main(int argc, char **argv)
     struct Smf119Header *phdr;
 
     /* process command-line arguments */
-    if (argc != 2) {
-        printf("Usage:  smf119 infile\n");
-        return 12;
-    }
     size_t len = strlen(argv[1]);
     if (argc != 2 || strlen(argv[1]) >= MAX_DATASET_LEN) {
        fprintf(stderr, "Usage: smf119 <fully qualified SMF dataset>\n");
        return 12;
-    }
-    sprintf(infile, "//'%s'", argv[1]);
+    } else {
+       sprintf(infile, "//'%s'", argv[1]);
 
-    /* open input file */
-    fin = fopen(infile, "rb, type=record");
-    if (fin == NULL) {
-        perror(infile);
-        return 8;
+       /* open input file */
+       fin = fopen(infile, "rb, type=record");
+       if (fin == NULL) {
+           perror(infile);
+           return 8;
+       }
     }
 
     /* process input file records */
@@ -312,9 +320,9 @@ int main(int argc, char **argv)
     /* clean up */
     fclose(fin);
 #if VERBOSE 
-    fprintf(stderr, "%10u SMF119    records converted (sub-type 95 and sub-type 2 for SSHD)\n", n119);
-    printf(stderr, "%10u SMF119     records read\n", n119total);
-    printf(stderr, "%10u * TOTAL *  records read\n", n);
+    fprintf(stderr, "%10u SMF119    records converted (sub-types 2, 94, 95, 96, 97, 98)\n", n119);
+    fprintf(stderr, "%10u SMF119     records read\n", n119total);
+    fprintf(stderr, "%10u * TOTAL *  records read\n", n);
 #endif
 }
 

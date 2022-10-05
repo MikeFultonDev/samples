@@ -1,0 +1,55 @@
+#!/bin/sh
+#set -x
+# 
+# Determine what 'xx' is and print it out
+# for a variety of things.
+#
+me=$0
+if [ $# -lt 1 ]; then
+  echo "Syntax: $me <what>\n" >&2
+  echo "  where <what> is the member you want to determine XX for\n" >&2
+  echo "<what> can be:\n" >&2
+  echo "LOAD ........ SYS0.IPLPARM member at IPL\n" >&2
+  exit 4
+fi
+
+what=$(echo $1 | tr '[:lower:]' '[:upper:]')
+if [ "${what}" = "LOAD" ]; then
+  zinfo -t ipl | grep 'ipaloadxx:' | awk ' { print $2 }' | tr -d "'" 
+  exit 0
+elif [ "${what}" = "IEASYS" ] || [ "${what}" = "IEASYM" ]; then
+  #
+  # Theoretically, need to check each of COMMNDxx, IEACMDxx, and LOADxx but 
+  # will do a partial implementation here and just look in LOADxx for 
+  # a SET SMF=xx. If not present, return 00
+  # Also note that the format can be more complex and be multiple xx's, e.g
+  # SET SMF=(00,01,02,...,0n)
+  # and it could also have an L for listing in it.
+  # For now, error out if this is encountered.
+  if ! load=$(${me} LOAD); then
+    echo "Unable to determine LOADxx dataset" >&2
+    exit 8
+  fi
+  keyword="${what}"
+  if [ "${keyword}" = "IEASYS" ]; then
+    keyword="SYSPARM"
+  fi
+  entry=$(cat "//'SYS0.IPLPARM(LOAD${load})'" | egrep ^${keyword})
+  if [ $? -gt 0 ]; then
+    echo "00"
+  else
+    entries=$(echo "${entry}" | wc -w)
+    if [ ${entries} -ne 2 ]; then
+      echo "Unexpected entry for ${entry}" >&2
+      exit 8
+    fi
+    xx=$(echo "${entry}" | awk '{print $2; }')
+    length=$(echo -n "${xx}" | wc -c)
+    if [ ${entries} -ne 2 ]; then
+      echo "Unexpected entry for ${keyword} ${xx}. Expected ${xx} to be exactly 2 characters" >&2
+      exit 8
+    fi
+    echo ${xx}
+  fi
+
+fi

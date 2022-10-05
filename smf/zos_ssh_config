@@ -1,0 +1,27 @@
+# /****PROPRIETARY_STATEMENT******************************************/
+# /*                                                                 */
+# /*   LICENSED MATERIALS - PROPERTY OF IBM                          */
+# /*   5655-M23 COPYRIGHT IBM CORP. 2009, 2018                       */
+# /*                                                                 */
+# /*   STATUS= HOS2240                                               */
+# /*                                                                 */
+# /****END_OF_PROPRIETARY_STATEMENT***********************************/
+
+
+# This is the z/OS-specific ssh client system-wide configuration 
+# file.  Use 'man zos_ssh_config' to see the zos_ssh_config man page for 
+# more information.  
+
+# Any configuration value is only changed the first time it is set.
+# Thus, host-specific definitions should be at the beginning of the
+# configuration file, and defaults at the end.
+
+# System-wide defaults for the z/OS platform specific ssh client options.
+
+#   ChannelConvert shell,exec
+#   ZEDCCompression no
+
+# Host *
+# The ClientSMF keyword is only supported in the system-wide file. 
+   ClientSMF TYPE119_U83  
+

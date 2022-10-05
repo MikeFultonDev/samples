@@ -12,10 +12,12 @@ if ! $(dtouch -rvbs -l32760 -b0 -tseq $tmpds); then
 fi
   
 in="    LSNAME (IFASMF.VS01.DATA) 
-        OUTDD (OUTDD1,TYPE(119(2,95)))  
-        DATE(2022001,2022364)" 
-if ! out=$(echo "$in" | mvscmdauth --pgm=IFASMFDL --outdd1=$tmpds --sysprint=* --sysin=stdin); then
-  echo "Failed to extract SMF records from datastream" >&2
+        OUTDD (OUTDD1,TYPE(119(2,94,95,96,97,98)))  
+        RELATIVEDATE(BYDAY,0,1)" 
+out=$(echo "$in" | mvscmdauth --pgm=IFASMFDL --outdd1=$tmpds --sysprint=* --sysin=stdin)
+rc=$?
+if [ $rc -gt 4 ]; then
+  echo "Failed to extract SMF records from datastream. rc: $rc" >&2
   echo "$out" >&2
 fi
 

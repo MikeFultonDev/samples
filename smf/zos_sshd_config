@@ -1,0 +1,31 @@
+# /****PROPRIETARY_STATEMENT******************************************/
+# /*                                                                 */
+# /*   LICENSED MATERIALS - PROPERTY OF IBM                          */
+# /*   5655-M23 COPYRIGHT IBM CORP. 2010, 2018                       */
+# /*                                                                 */
+# /*   STATUS= HOS2240                                               */
+# /*                                                                 */
+# /****END_OF_PROPRIETARY_STATEMENT***********************************/
+
+
+# This is the z/OS-specific sshd server system-wide configuration 
+# file.  Use 'man zos_sshd_config' to see the zos_sshd_config man page for 
+# more information.  
+
+# System-wide defaults for the z/OS platform specific sshd server options.
+
+#ServerSMF none
+
+# The HostKeyRingLabel option does not have a default value.
+# If it is not specified, then the host keys are obtained from
+# the sshd_config HostKey option.
+#HostKeyRingLabel "KRowner/KeyRing CertificateLabel"
+
+#   ChannelConvert shell,exec
+#   ZEDCCompression no
+
+# Example of overriding settings on a per-user basis
+#Match User anoncvs
+	ServerSMF TYPE119_U83
+
+
