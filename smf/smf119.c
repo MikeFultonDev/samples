@@ -1,5 +1,8 @@
-/* smf119_2.c convert SMF type 119 subtype 2 records to CSV */
 
+/*
+ * This code was borrowed heavily from Andrew Mattingly, IBM. 
+ * All errors mine.
+ */
 /*
  * To compile:
  *
