@@ -3,13 +3,17 @@
 # 
 # Determine what 'xx' is and print it out
 # for a variety of things.
+# This code is a quick hack - should be refactored
 #
 me=$0
 if [ $# -lt 1 ]; then
   echo "Syntax: $me <what>\n" >&2
   echo "  where <what> is the member you want to determine XX for\n" >&2
   echo "<what> can be:\n" >&2
-  echo "LOAD ........ SYS0.IPLPARM member at IPL\n" >&2
+  echo "LOAD ........ SYS0.IPLPARM(LOADxx) member at IPL\n" >&2
+  echo "IEASYS ...... PARMLIB Concatenation(IEASYSxx) member\n" >&2
+  echo "IEASYM ...... PARMLIB Concatenation(IEASYMxx) member\n" >&2
+  echo "SMFPRM ...... PARMLIB Concatenation(SMFPRMxx) member\n" >&2
   exit 4
 fi
 
@@ -44,12 +48,30 @@ elif [ "${what}" = "IEASYS" ] || [ "${what}" = "IEASYM" ]; then
       exit 8
     fi
     xx=$(echo "${entry}" | awk '{print $2; }')
-    length=$(echo -n "${xx}" | wc -c)
-    if [ ${entries} -ne 2 ]; then
+    length=$(echo "${xx}" | wc -c)
+    if [ ${length} -ne 3 ]; then
       echo "Unexpected entry for ${keyword} ${xx}. Expected ${xx} to be exactly 2 characters" >&2
       exit 8
     fi
     echo ${xx}
   fi
-
+elif [ "${what}" = "SMFPRM" ]; then
+  #
+  # Look for SMF=xx keyword in IEASYSxx
+  #
+  if ! xx=$(${me} IEASYS); then
+    echo "Unable to determine IEASYSxx dataset" >&2
+    exit 8
+  fi
+  if ! pdd=$(parmwhence "IEASYS${xx}"); then
+    echo "Unable to determine PARMLIB dataset concatenation for IEASYS${xx}\n" >&2
+    exit 8
+  fi
+  xx=$(cat "//'${pdd}(IEASYS${xx})'" | grep 'SMF=' | tr '=,' '  ' | awk ' { print $2; }')
+  length=$(echo "${xx}" | wc -c)
+  if [ ${length} -ne 3 ]; then
+    echo "Unexpected entry for ${keyword} ${xx}. Expected ${xx} to be exactly 2 characters" >&2
+    exit 8
+  fi
+  echo ${xx}
 fi
