@@ -35,7 +35,11 @@ uips=$(echo "$ips" | sort -u)
 if [ "$ips" = "$uips" ]; then
   #echo 'quick test can be done - all 'open' IP/port connections unique'
 else
-  echo 'write some code'
+  echo "All open IP/port connections are NOT unique." >&2
+  echo "See: /tmp/ips, /tmp/uips, /tmp/ips.diff" >&2
+  echo "${ips}" >/tmp/ips
+  echo "${uips}" >/tmp/uips
+  diff /tmp/ips /tmp/uips >/tmp/ips.diff
   exit 4
 fi
 
@@ -47,8 +51,23 @@ tuips=$(echo "$tips" | sort -u)
 if [ "$tips" = "$tuips" ]; then
   #echo 'quick test can be done - all 'close' IP/port connections unique'
 else
-  echo 'write some code'
-  exit 4
+  #
+  # Need to validate that any duplicate IP/Port combinations are
+  # NOT open connections
+  #
+  echo "${tips}" >/tmp/tips
+  echo "${tuips}" >/tmp/tuips
+  dips=$(diff /tmp/tips /tmp/tuips | egrep '^<' | awk ' { print $2; }' )
+  for dip in $dips; do
+    ip=${dip%%:*}
+    port=${dip##*:}
+    user=$(echo "$smfrecs" | awk -v ip=$ip -v port=$port ' { if ($4 == 95 && $7 == ip && $8 == port) { print $9; }}')
+    if [ "${user}x" != "x" ]; then
+      echo "All terminated IP/port connections are NOT unique and one or more was used for a successful SSHD session." >&2
+      echo "See: /tmp/tips, /tmp/tuips, /tmp/tips.diff" >&2
+      exit 4
+    fi 
+  done
 fi
 
 #
