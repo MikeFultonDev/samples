@@ -27,6 +27,12 @@ IFS='
 '
 smfrecs=$(cat)
 
+tmpips=/tmp/$$_ips
+tmpuips=/tmp/$$_uips
+tmpipsdiff=/tmp/$$_ips.diff
+tmptips=/tmp/$$_tips
+tmptuips=/tmp/$$_tuips
+
 #
 # IP/Port pairs for SSHD 95 OPEN SMF records
 #
@@ -36,10 +42,10 @@ if [ "$ips" = "$uips" ]; then
   #echo 'quick test can be done - all 'open' IP/port connections unique'
 else
   echo "All open IP/port connections are NOT unique." >&2
-  echo "See: /tmp/ips, /tmp/uips, /tmp/ips.diff" >&2
-  echo "${ips}" >/tmp/ips
-  echo "${uips}" >/tmp/uips
-  diff /tmp/ips /tmp/uips >/tmp/ips.diff
+  echo "See: ${tmpips}, ${tmpuips}, ${tmpipsdiff}" >&2
+  echo "${ips}" >${tmpips}
+  echo "${uips}" >${tmpuips}
+  diff ${tmpips} ${tmpuips} >${tmpipsdiff}
   exit 4
 fi
 
@@ -55,16 +61,16 @@ else
   # Need to validate that any duplicate IP/Port combinations are
   # NOT open connections
   #
-  echo "${tips}" >/tmp/tips
-  echo "${tuips}" >/tmp/tuips
-  dips=$(diff /tmp/tips /tmp/tuips | egrep '^<' | awk ' { print $2; }' )
+  echo "${tips}" >${tmptips}
+  echo "${tuips}" >${tmptuips}
+  dips=$(diff ${tmptips} ${tmptuips} | egrep '^<' | awk ' { print $2; }' )
   for dip in $dips; do
     ip=${dip%%:*}
     port=${dip##*:}
     user=$(echo "$smfrecs" | awk -v ip=$ip -v port=$port ' { if ($4 == 95 && $7 == ip && $8 == port) { print $9; }}')
     if [ "${user}x" != "x" ]; then
       echo "All terminated IP/port connections are NOT unique and one or more was used for a successful SSHD session." >&2
-      echo "See: /tmp/tips, /tmp/tuips, /tmp/tips.diff" >&2
+      echo "See: ${tmptips}, ${tmptuips}" >&2
       exit 4
     fi 
   done
@@ -73,15 +79,15 @@ fi
 #
 # These are the open connections
 #
-echo "$ips" >/tmp/ips
-echo "$tips" >/tmp/tips 
-oips=$(diff /tmp/ips /tmp/tips | egrep '^<' | awk ' { print $2; }')
+echo "$ips" >${tmpips}
+echo "$tips" >${tmptips} 
+oips=$(diff ${tmpips} ${tmptips} | egrep '^<' | awk ' { print $2; }')
 
 #
 # These are the closed connections
 #
 echo "$oips" >/tmp/oips
-cips=$(diff /tmp/ips /tmp/oips | egrep '^<' | awk ' { print $2;	}')
+cips=$(diff ${tmpips} /tmp/oips | egrep '^<' | awk ' { print $2;	}')
 
 #
 # Write the open connections to the 'new' file
@@ -105,3 +111,5 @@ for cip in $cips; do
 done
 
 IFS="$OLDIFS"
+
+rm /tmp/$$_*

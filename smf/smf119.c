@@ -20,8 +20,6 @@
 #define __IPV6
 #include "ezasmf.h"
 
-#define VERBOSE 1
-
 struct SMF119SSH_LF {
     char SMF119SSH_LFRIP[16]; /* Remote IP address */
     char SMF119SSH_LFLIP[16]; /* Local IP address */
