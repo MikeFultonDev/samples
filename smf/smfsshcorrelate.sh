@@ -22,12 +22,15 @@ fi
 prev=$1
 now=$2
 
+rm -f ${now}
+
 OLDIFS="$IFS"
 IFS='
 '
 smfrecs=$(cat)
 
 tmpips=/tmp/$$_ips
+tmpoips=/tmp/$$_oips
 tmpuips=/tmp/$$_uips
 tmpipsdiff=/tmp/$$_ips.diff
 tmptips=/tmp/$$_tips
@@ -86,8 +89,8 @@ oips=$(diff ${tmpips} ${tmptips} | egrep '^<' | awk ' { print $2; }')
 #
 # These are the closed connections
 #
-echo "$oips" >/tmp/oips
-cips=$(diff ${tmpips} /tmp/oips | egrep '^<' | awk ' { print $2;	}')
+echo "$oips" >${tmpoips}
+cips=$(diff ${tmpips} ${tmpoips} | egrep '^<' | awk ' { print $2; }')
 
 #
 # Write the open connections to the 'new' file
