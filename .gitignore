@@ -28,3 +28,4 @@ codepage/e2a
 codepage/codepage.h
 smf/smf119.o
 smf/smf119
+cmakeit/hw/build

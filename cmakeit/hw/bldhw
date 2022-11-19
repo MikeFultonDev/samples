@@ -1,0 +1,6 @@
+#!/bin/sh
+export CC=xlclang
+export CXX=xlclang++
+mkdir -p build
+cd build
+cmake -D CMAKE_C_COMPILER=${CC} -D CMAKE_CXX_COMPILER=${CXX} .. && cmake --build .
