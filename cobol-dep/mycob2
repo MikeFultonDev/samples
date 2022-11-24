@@ -1,0 +1,39 @@
+#!/bin/sh
+
+#
+# Simple 'front end' to compile COBOL source code
+#
+set -x
+mydir=$(cd $(dirname $0) && echo $PWD)
+
+# msf - rudimentary to get going
+cobopts=""
+for opt in $@; do
+  opttext="${opt#-*}";
+  if [ "${opttext}" = "${opt}" ]; then
+    src="${opt}"
+  else
+    if [ "${opttext}" = 'M' ]; then
+      cobopts="${cobopts} -qexit(INEXIT(,MEXIT),LIBEXIT(,MEXIT))"
+    else
+      cobopts="${cobopts} -${opttext}"
+    fi
+  fi
+done
+if [ "${src}x" = "x" ]; then
+  echo "Unable to determine source file from command line $@" >&2
+  exit 8
+fi
+
+export _BPXK_JOBLOG=STDERR
+export STEPLIB=IGY.V6R4M0.SIGYCOMP:IGY.V6R4M0.SIGYLIB:FULTONM.USER.LOAD
+cp=$(chtag -p "${src}" | awk '{ print $2; }')
+
+if [ "${cp}x" = "ISO8859-1x" ]; then
+  if ! a2e "${src}" ; then
+    echo "COBOL file is in ASCII and needs to be converted to EBCDIC, but conversion failed" >&2
+    exit 8
+  fi
+fi
+cob2 ${cobopts} "$src"
+
