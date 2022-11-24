@@ -75,6 +75,8 @@
 002913
 002914 77  serial-count      pic s9(9) comp-5 value 0.
        77  dot-count         pic s9(9) comp-5 value 0.
+       77  empty             pic x(30).
+       77  raw-file          pic x(30).
 002915 77  srcno             pic s9(4) comp-5.
 002918*
 002919* The copybook stack includes an entry for the outer level
@@ -91,7 +93,7 @@
 003000   3 file-ptr          pointer.
 003001   3 file-count        pic s9(9) comp-5.
 003003   3 file-library      pic x(8).
-003004   3 file-member       pic x(8).
+         3 file-member       pic x(32).
 003020   3 file-buffer       pic x(80).
 003100*
 003110 local-storage section.
@@ -278,7 +280,7 @@
 004463         returning file-status
 004465
 004466         if file-status not = length of file-buffer(1) then
-004467
+
 004468             *> do we have eof?
 004470             call "feof" using by value
 004471                 file-ptr(1)
@@ -476,7 +478,7 @@
 004682 libexit-find.
 004683
 004684     display "CBLSRCX >  libexit-find " libno
-004686         " " exit-system-member
+004686         " " exit-member
 004687         " of " exit-system-library
 004688
 004689     perform 1 times
@@ -491,7 +493,7 @@
 004700
 004701D            *> assert if we've gotten out of sync with compiler
 004702D            if exit-system-library not = file-library(libno) or
-004703D               exit-system-member  not = file-member(libno) then
+004703D               exit-member  not = file-member(libno) then
 004704D                display "CBLSRCX A  libexit-find " libno
 004705D                    " Current file-element doesn't match"
 004706D                    " exit parameters."
@@ -516,10 +518,10 @@
 004726         set  file-ptr(libno)     to NULL
 004727         move ZERO                to file-count(libno)
 004729         move exit-system-library to file-library(libno)
-004730         move exit-system-member  to file-member(libno)
+004730         move exit-member         to file-member(libno)
 004731
                inspect file-member(libno) tallying dot-count 
-                 for all '0'
+                 for all '.'
                if dot-count = 0 then 
 004732           *> build the DD+member filename
 004733          string
@@ -533,9 +535,11 @@
 004741          end-string
                else
                  *> build the 'file' name (not in a library)
+                 unstring file-member(libno) delimited by '"'
+                   into empty raw-file
                  string
-                     "//DD:"
-                     file-member(libno) delimited by SPACE
+                     "./"
+                     raw-file delimited by SPACE
                      x'00' delimited by size
                      into filename
                  end-string
@@ -543,6 +547,7 @@
 
 004742
 004743         *> do the open
+               display "fopen <" filename ">"
 004745         call "fopen" using
 004746             filename
 004747             by content z"rb"
@@ -571,6 +576,7 @@
 004772         end-if
 004773
 004774         *> we're good to go
+               display "all good on libexit-find"
 004775         set EXIT-RETURNCODE-OK to TRUE
 004776
 004777     end-perform
@@ -587,10 +593,10 @@
 004788*-----------------------------------------------------------------
 004789 libexit-get.
 004790
-004791D    *> entry trace only during debugging
-004792D    display "CBLSRCX >  libexit-get " libno
-004794D        " " file-member(libno)
-004795D        " of " file-library(libno)
+004791     *> entry trace only during debugging
+004792     display "CBLSRCX >  libexit-get " libno
+004794         " " file-member(libno)
+004795         " of " file-library(libno)
 004796
 004797     perform 1 times
 004798
@@ -628,6 +634,8 @@
 004831         returning file-status
 004833
 004834         if file-status not = length of file-buffer(libno) then
+                   display "File-status " file-status 
+                     "File-buffer" length of file-buffer(libno) 
 004835
 004836             *> do we have eof?
 004838             call "feof" using by value
@@ -636,6 +644,7 @@
 004842
 004843             if file-status not = ZERO then
 004844                 *> we have end of file
+                       display "end of file " file-member(libno)
 004845                 perform libexit-close-member
 004846                 set EXIT-RETURNCODE-EOF to TRUE
 004847                 exit perform
@@ -662,9 +671,9 @@
 004868
 004869     end-perform
 004870
-004871D    *> exit trace only during debugging
-004872D    display "CBLSRCX <  libexit-get " libno
-004873D        " rc=" exit-returncode
+004871     *> exit trace only during debugging
+004872     display "CBLSRCX <  libexit-get " libno
+004873         " rc=" exit-returncode
 004874
 004875     exit.
 004876
