@@ -405,28 +405,14 @@
 004598
 004599         *> posit failure
 004600         set EXIT-RETURNCODE-FAILED to TRUE
-004613         
-      *        inspect exit-system-library tallying dot-count 
-      *          for all '.'
-               move 0 to dot-count 
-
-               if dot-count = 0 then 
+004613        
 004614           *> build the library filename
 004615           string
 004616               "//DD:"
-004617               exit-system-library delimited by SPACE
+004617               exit-system-library delimited by SPACE 
 004618               x'00' delimited by size
 004619               into filename
 004620           end-string
-               else
-                 *> build the 'file' name (not in a library)
-                 string
-                     "./"
-                     exit-system-library delimited by SPACE
-                     x'00' delimited by size
-                     into filename
-                 end-string
-               end-if
 004621
 004622         *> do the open to check for the ddname
 004624         call "fopen" using
@@ -437,9 +423,14 @@
 004630         if lib-ptr = NULL then
 004631             perform get-errnos
 004632             if FOPEN_DDNAME_NOT_FOUND then
-004633                 display "CBLSRCX E  libexit-open " libno
-004634                     " " exit-system-library
-004635                     " failed, " filename " not found"
+      *
+      * This is not an error if the DDNAME is not found
+      * This is expected behaviour in USS
+      *
+004633*                display "CBLSRCX E  libexit-open " libno
+004634*                    " " exit-system-library
+004635*                    " failed, " filename " not found"
+                       set EXIT-RETURNCODE-OK to TRUE
 004636             else
 004637                 display "CBLSRCX E  libexit-open " libno
 004638                     " " exit-system-library " failed, "
@@ -464,9 +455,6 @@
 004659             exit perform
 004660         end-if
 004661
-               display "CBLSRCX I  inexit-copy-open of"
-                 exit-system-library
-
 004662         *> it all worked
 004663         set EXIT-RETURNCODE-OK to TRUE
 004664
@@ -530,16 +518,29 @@
 004729         move exit-system-library to file-library(libno)
 004730         move exit-system-member  to file-member(libno)
 004731
-004732         *> build the DD+member filename
-004733         string
-004734             "//DD:"
-004735             file-library(libno) delimited by SPACE
-004736             "("
-004737             file-member(libno)  delimited by SPACE
-004738             ")"
-004739             x'00' delimited by size
-004740             into filename
-004741         end-string
+               inspect exit-system-library tallying dot-count 
+                 for all '0'
+               if dot-count = 0 then 
+004732           *> build the DD+member filename
+004733          string
+004734              "//DD:"
+004735              file-library(libno) delimited by SPACE
+004736              "("
+004737              file-member(libno)  delimited by SPACE
+004738              ")"
+004739              x'00' delimited by size
+004740              into filename
+004741          end-string
+               else
+                 *> build the 'file' name (not in a library)
+                 string
+                     "//DD:"
+                     file-member(libno) delimited by SPACE
+                     x'00' delimited by size
+                     into filename
+                 end-string
+               end-if
+
 004742
 004743         *> do the open
 004745         call "fopen" using
@@ -549,6 +550,7 @@
 004750
 004751         if file-ptr(libno) = NULL then
 004752             perform get-errnos
+                   display "Tried to open " filename
 004753             if FOPEN_MEMBER_NOT_FOUND then
 004754                 display "CBLSRCX E  libexit-find " libno
 004756                     " " file-member(libno)
