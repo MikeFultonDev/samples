@@ -3,7 +3,7 @@
 #
 # Simple 'front end' to compile COBOL source code
 #
-set -x
+#set -x
 mydir=$(cd $(dirname $0) && echo $PWD)
 
 # msf - rudimentary to get going
@@ -36,4 +36,12 @@ if [ "${cp}x" = "ISO8859-1x" ]; then
   fi
 fi
 cob2 ${cobopts} "$src"
+rc=$?
 
+if [ "${cp}x" = "ISO8859-1x" ]; then
+  if ! e2a "${src}" ; then
+    echo "Convdrsion of COBOL file back to ASCII failed" >&2
+    exit 8
+  fi
+fi
+exit $rc

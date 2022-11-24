@@ -518,7 +518,7 @@
 004729         move exit-system-library to file-library(libno)
 004730         move exit-system-member  to file-member(libno)
 004731
-               inspect exit-system-library tallying dot-count 
+               inspect file-member(libno) tallying dot-count 
                  for all '0'
                if dot-count = 0 then 
 004732           *> build the DD+member filename

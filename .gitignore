@@ -29,3 +29,7 @@ codepage/codepage.h
 smf/smf119.o
 smf/smf119
 cmakeit/hw/build
+cobol-dep/*.o
+cobol-dep/*.lst
+cobol-dep/hw
+cobol-dep/a.out
