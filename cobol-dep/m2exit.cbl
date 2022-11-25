@@ -338,8 +338,8 @@
 004587     display "MEXIT >  libexit-open " libno
 004588         " " exit-system-library
 
-004662         *> it all worked - this is a NOP for test where all src in HFS
-004663         set EXIT-RETURNCODE-OK to TRUE
+004662     *> it all worked - this is a NOP for test where all src in HFS
+004663     set EXIT-RETURNCODE-OK to TRUE
 004664
 004669     display "MEXIT <  libexit-open " libno
 004670         " rc=" exit-returncode
@@ -645,12 +645,12 @@
 005065*-----------------------------------------------------------------
 005066 source-trace.
 005067
-005068     display "MEXIT:  "
-005069         file-library(srcno) " "
-005070         file-member(srcno) " "
-005071         file-count(srcno) " "
-005072         serial-count
-005073         ": " file-buffer(srcno)
+005068D    display "MEXIT:  "
+005069D        file-library(srcno) " "
+005070D        file-member(srcno) " "
+005071D        file-count(srcno) " "
+005072D        serial-count
+005073D        ": " file-buffer(srcno)
 005074
 005075     exit.
 005080
