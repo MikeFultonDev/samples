@@ -1,3 +1,3 @@
 #!/bin/sh
 
-xlclang -Wc,gonum -opshef -O3 pshef.c
+xlclang -opshef pshef.c

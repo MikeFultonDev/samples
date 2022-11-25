@@ -59,8 +59,6 @@ static pid_t getentrypid(struct ProcessEntry* entry, int startcol)
 
 static int add_entry(char* line, struct ProcessEntry** entryp)
 {
-  int i;
-
   size_t len = strlen(line);
   char* procline = malloc(len+1);
   struct ProcessEntry* entry = malloc(sizeof(struct ProcessEntry));
@@ -147,7 +145,6 @@ int main()
   int rc;
   int c;
   struct ProcessEntry* head = NULL;
-  struct ProcessEntry* entry;
   int count=0;
   int i=0;
 
