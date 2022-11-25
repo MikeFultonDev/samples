@@ -13,44 +13,17 @@ struct ProcessEntry {
   struct ProcessEntry* proc_parent;
   struct ProcessEntry* next_entry;
   pid_t pid;
+  pid_t ppid;
   char* line;
-  int printed;
 };
 
-static int add_entry(char* line, struct ProcessEntry** entryp)
-{
-  int i;
-
-  size_t len = strlen(line);
-  char* procline = malloc(len+1);
-  struct ProcessEntry* entry = malloc(sizeof(struct ProcessEntry));
-  if (!procline || !entry) {
-    return 16;
-  }
-
-  memcpy(procline, line, len+1);
-  entry->line = procline;
-  entry->next_entry = *entryp;
-  entry->proc_parent = NULL; 
-  entry->pid = 0;
-  entry->printed = 0;
-
-  *entryp = entry;
-
-  return 0;
-}
-
 #define PID_START_COL 9
-#define PPID_START_COL 18
+#define PPID_START_COL 19
 static pid_t getentrypid(struct ProcessEntry* entry, int startcol) 
 {
   int val = 0;
   int innum=0;
   int col;
-
-  if (entry->pid) {
-    return entry->pid;
-  }
 
   for (col=startcol; ; ++col) {
     int c = entry->line[col];
@@ -71,8 +44,7 @@ static pid_t getentrypid(struct ProcessEntry* entry, int startcol)
       }
       case ' ': {
         if (innum) {
-          entry->pid = (pid_t) val;
-          return entry->pid;
+          return val;
         }
         break;
       }
@@ -85,10 +57,34 @@ static pid_t getentrypid(struct ProcessEntry* entry, int startcol)
   return -1; /* not reachable */
 }
 
-static struct ProcessEntry* parent(struct ProcessEntry* entry, pid_t pid)
+static int add_entry(char* line, struct ProcessEntry** entryp)
 {
+  int i;
+
+  size_t len = strlen(line);
+  char* procline = malloc(len+1);
+  struct ProcessEntry* entry = malloc(sizeof(struct ProcessEntry));
+  if (!procline || !entry) {
+    return 16;
+  }
+
+  memcpy(procline, line, len+1);
+  entry->line = procline;
+  entry->next_entry = *entryp;
+  entry->proc_parent = NULL; 
+  entry->pid = getentrypid(entry, PID_START_COL);
+  entry->ppid = getentrypid(entry, PPID_START_COL);
+
+  *entryp = entry;
+
+  return 0;
+}
+
+static struct ProcessEntry* parent(struct ProcessEntry* head, pid_t pid)
+{
+  struct ProcessEntry* entry = head;
   while (entry) {
-    pid_t mypid = getentrypid(entry, PID_START_COL);
+    pid_t mypid = entry->pid;
     if (mypid == pid) {
       return entry;
     }
@@ -101,14 +97,46 @@ static int update_parents(struct ProcessEntry* head)
 {
   struct ProcessEntry* entry = head;
   while (entry) {
-    pid_t ppid = getentrypid(entry, PPID_START_COL);
-    struct ProcessEntry* proc_parent = parent(head, ppid);
+    struct ProcessEntry* proc_parent = parent(head, entry->ppid);
     if (proc_parent) {
       entry->proc_parent = proc_parent;
     }
     entry = entry->next_entry;
   }
+  return 0;
+}
 
+static int print_children(struct ProcessEntry* parent, struct ProcessEntry* head, int indent) {
+  struct ProcessEntry* entry = head;
+  int i;
+
+  pid_t me = getpid();
+  while (entry) {
+    if (entry->pid != me) {
+      if (entry->ppid == parent->pid) {
+        for (i=0; i<indent; ++i) {
+          putchar('.');
+        }
+        printf("%s\n", entry->line);
+        print_children(entry, head, indent+1);
+      }
+    }
+    entry = entry->next_entry;
+  }
+  return 0;
+}
+
+static int print_hierarchy(struct ProcessEntry* head)
+{
+  struct ProcessEntry* entry = head;
+
+  while (entry) {
+    if (!entry->proc_parent) {
+      printf("%s\n", entry->line);
+      print_children(entry, head, 0);
+    }
+    entry = entry->next_entry;
+  }
   return 0;
 }
 
@@ -116,11 +144,12 @@ int main()
 {
   char line[MAX_CMD_LEN+1];
 	int childout[2]; 
-  int rc, i;
+  int rc;
   int c;
   struct ProcessEntry* head = NULL;
   struct ProcessEntry* entry;
   int count=0;
+  int i=0;
 
 	pid_t pid;
 
@@ -165,11 +194,7 @@ int main()
 		wait(NULL);
 
     update_parents(head);
-    entry = head;
-    while (entry) {
-      printf("%d: %s\n", count++, entry->line);
-      entry = entry->next_entry;
-    }
+    print_hierarchy(head);
 	} else {
 
     /*
