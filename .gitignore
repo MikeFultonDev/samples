@@ -33,3 +33,6 @@ cobol-dep/*.o
 cobol-dep/*.lst
 cobol-dep/hw
 cobol-dep/a.out
+processes/*.o
+processes/a.out
+processes/pshef
