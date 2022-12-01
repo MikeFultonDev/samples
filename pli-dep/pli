@@ -1,9 +1,23 @@
-#!/bin/sh
+#!/bin/env bash
 
 # Simple front end to compile PL/I code
+# Requires 'bash' for extended 'type' command
 
 #set -x
 mydir=$(cd $(dirname $0) && echo $PWD)
+
+allpli=$(type -ap pli)
+realpli=$(echo "${allpli}" | tail -1)
+
+if [ "${realpli}x" = "x" ]; then
+  echo "Unable to find the underlying PL/I compiler 'pli'" >&2
+  exit 16
+fi
+
+if [ "${realpli}" = "${mydir}/pli" ]; then
+  echo "Need to ensure the underlying PL/I compiler 'pli' is in your PATH" >&2
+  exit 16
+fi
 
 # msf - rudimentary to get going
 pliopts=""
@@ -37,4 +51,4 @@ if [ "${src}x" = "x" ]; then
   fi
 fi
 
-pli ${pliopts} $src
+"${realpli}" ${pliopts} $src
