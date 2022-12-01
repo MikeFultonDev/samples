@@ -1,5 +1,6 @@
 #!/bin/sh
 mydir=$(cd $(dirname $0) && echo $PWD)
+export PC=pli
 
 #
 # Put my fake clang/clang++ compilers up front
@@ -7,4 +8,4 @@ mydir=$(cd $(dirname $0) && echo $PWD)
 export PATH="${mydir}":${PATH}
 mkdir -p build
 cd build
-cmake  .. && cmake --build .
+cmake -D CMAKE_PLI_COMPILER=${PC}  .. && cmake --build .
