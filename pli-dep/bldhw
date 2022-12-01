@@ -1,0 +1,10 @@
+#!/bin/sh
+mydir=$(cd $(dirname $0) && echo $PWD)
+
+#
+# Put my fake clang/clang++ compilers up front
+#
+export PATH="${mydir}":${PATH}
+mkdir -p build
+cd build
+cmake  .. && cmake --build .
