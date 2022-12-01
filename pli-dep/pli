@@ -20,26 +20,36 @@ if [ "${realpli}" = "${mydir}/pli" ]; then
 fi
 
 # msf - rudimentary to get going
-pliopts=""
+pliopts="-qrent"
 version=false
+optparm=false
 for opt in $@; do
   opttext="${opt#-*}";
   if [ "${opttext}" = "${opt}" ]; then
-    src="${opt}"
+    if ${optparm}; then
+      pliopts="${pliopts} ${opttext}"
+      optparm=false
+    else
+      src="${opt}"
+    fi
   else
+    optparm=false
     if [ "${opttext}" = 'M' ]; then
       pliopts="${pliopts} -c -qxinfo=dep -qnc"
     else 
       if [ "${opttext}" = 'v' ]; then
         version=true
-      else
+      else 
+        if [ "${opttext}" = 'o' ]; then
+          optparm=true
+        fi
         pliopts="${pliopts} -${opttext}"
       fi
     fi
   fi
 done
 
-export STEPLIB=FULTONM.PORT.TEMPV6R2:$STEPLIB
+export STEPLIB=FULTONM.PORT.TEMPFE:FULTONM.PORT.TEMPBE:$STEPLIB
 if ${version} ; then
   (cd /tmp; echo " PLIVER: PROC OPTIONS(MAIN);" >$$.pli;  pli -qlist -qnc -c $$.pli >/dev/null 2>/dev/null ; cat $$.lst | head -1; rm $$.lst $$.pli)
 fi
@@ -50,5 +60,7 @@ if [ "${src}x" = "x" ]; then
     exit 8
   fi
 fi
+
+set -x
 
 "${realpli}" ${pliopts} $src

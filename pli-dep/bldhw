@@ -8,6 +8,7 @@ export CXX=xlclang++
 # Put my fake clang/clang++ compilers up front
 #
 export PATH="${mydir}":${PATH}
+rm -rf build
 mkdir -p build
 cd build
 cmake -D CMAKE_PLI_COMPILER=${PC} -D CMAKE_C_COMPILER=${CC} -D CMAKE_CXX_COMPILER=${CXX}  .. && cmake --build .
