@@ -1,0 +1,5 @@
+ HELLO:   PROCEDURE OPTIONS (MAIN);
+              /* A PROGRAM TO OUTPUT HELLO WORLD */
+       %include "hw.inc";
+          PUT SKIP LIST('HELLO WORLD!');
+ END HELLO;

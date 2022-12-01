@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# Simple front end to compile PL/I code
+
+#set -x
+mydir=$(cd $(dirname $0) && echo $PWD)
+
+# msf - rudimentary to get going
+pliopts=""
+for opt in $@; do
+  opttext="${opt#-*}";
+  if [ "${opttext}" = "${opt}" ]; then
+    src="${opt}"
+  else
+    if [ "${opttext}" = 'M' ]; then
+      pliopts="${pliopts} -c -qxinfo=dep -qnc"
+    else
+      pliopts="${pliopts} -${opttext}"
+    fi
+  fi
+done
+if [ "${src}x" = "x" ]; then
+  echo "Unable to determine source file from command line $@" >&2
+  exit 8
+fi
+
+
+export STEPLIB=FULTONM.PORT.TEMPV6R2:$STEPLIB
+#cp=$(chtag -p "${src}" | awk '{ print $2; }')
+
+#if [ "${cp}x" = "ISO8859-1x" ]; then
+#  if ! a2e "${src}" ; then
+#    echo "PL/I file is in ASCII and needs to be converted to EBCDIC, but conversion failed" >&2
+#    exit 8
+#  fi
+#fi
+pli ${pliopts} $src
+rc=$?
+
+#if [ "${cp}x" = "ISO8859-1x" ]; then
+#  if ! e2a "${src}" ; then
+#    echo "Conversion of PL/I file back to ASCII failed" >&2
+#    exit 8
+#  fi
+#fi
