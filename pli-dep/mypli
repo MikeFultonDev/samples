@@ -7,6 +7,7 @@ mydir=$(cd $(dirname $0) && echo $PWD)
 
 # msf - rudimentary to get going
 pliopts=""
+version=false
 for opt in $@; do
   opttext="${opt#-*}";
   if [ "${opttext}" = "${opt}" ]; then
@@ -14,18 +15,28 @@ for opt in $@; do
   else
     if [ "${opttext}" = 'M' ]; then
       pliopts="${pliopts} -c -qxinfo=dep -qnc"
-    else
-      pliopts="${pliopts} -${opttext}"
+    else 
+      if [ "${opttext}" = 'v' ]; then
+        version=true
+      else
+        pliopts="${pliopts} -${opttext}"
+      fi
     fi
   fi
 done
+
+export STEPLIB=FULTONM.PORT.TEMPV6R2:$STEPLIB
+if ${version} ; then
+  cd /tmp; echo " PLIVER: PROC OPTIONS(MAIN);" >$$.pli;  pli -qlist -qnc -c $$.pli >/dev/null 2>/dev/null ; cat $$.lst | head -1; rm $$.lst $$.pli
+  exit 0
+fi
+  
 if [ "${src}x" = "x" ]; then
   echo "Unable to determine source file from command line $@" >&2
   exit 8
 fi
 
 
-export STEPLIB=FULTONM.PORT.TEMPV6R2:$STEPLIB
 cp=$(chtag -p "${src}" | awk '{ print $2; }')
 
 if [ "${cp}x" = "ISO8859-1x" ]; then
