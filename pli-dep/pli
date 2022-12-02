@@ -22,18 +22,25 @@ fi
 # msf - rudimentary to get going
 pliopts="-qrent"
 version=false
-optparm=false
+objparm=false
+componly=false
+objfile=''
+src=''
 for opt in $@; do
   opttext="${opt#-*}";
   if [ "${opttext}" = "${opt}" ]; then
-    if ${optparm}; then
-      pliopts="${pliopts} ${opttext}"
-      optparm=false
+    if ${objparm}; then
+      objfile="${opttext}"
+      objparm=false
     else
-      src="${opt}"
+      if [ "${src}x" = "x" ]; then
+        src="${opt}"
+      else 
+        src="${src} ${opt}"
+      fi
     fi
   else
-    optparm=false
+    objparm=false
     if [ "${opttext}" = 'M' ]; then
       pliopts="${pliopts} -c -qxinfo=dep -qnc"
     else 
@@ -41,9 +48,15 @@ for opt in $@; do
         version=true
       else 
         if [ "${opttext}" = 'o' ]; then
-          optparm=true
+          objparm=true
+        else
+          if [ "${opttext}" = 'c' ]; then
+            componly=true
+            pliopts="${pliopts} -${opttext}"
+          else
+            pliopts="${pliopts} -${opttext}"
+          fi
         fi
-        pliopts="${pliopts} -${opttext}"
       fi
     fi
   fi
@@ -61,6 +74,40 @@ if [ "${src}x" = "x" ]; then
   fi
 fi
 
-set -x
+
+#
+# unfortunate restriction: to add 'support' for -c -o <object> we first write it to the local 
+# directory and then move it to the right target location
+# this doesn't work in general because the local directory may be read-only (among other issues)
+#
+# This code does not handle anything fancy like -c -o <object-directory> if there are multiple
+# .o's being generated
+
+fromobj=''
+toobj=''
+if [ "${objfile}x" != "x" ]; then
+  if ${componly} ; then
+    firstsrc=${src%% *}
+    if [ "${firstsrc}" != "${src}" ]; then
+      echo "No support for multiple source files being compiled with -c and -o option" >&2
+      exit 8
+    fi
+    srcwithoutextension=${src%.*}
+    fromobj="${srcwithoutextension}.o"
+    toobj="${objfile}"
+  else
+    pliopts="${pliopts} -o ${objfile}"
+  fi
+fi
 
 "${realpli}" ${pliopts} $src
+rc=$?
+if [ $rc -lt 4 ]; then
+  if [ -f "${fromobj}" ]; then
+    if [ "${fromobj}" != "${toobj}" ]; then
+      mv "${fromobj}" "${toobj}" 
+    fi
+    rc=$?
+  fi
+fi
+exit $rc
