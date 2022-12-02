@@ -19,24 +19,36 @@ if [ "${realpli}" = "${mydir}/pli" ]; then
   exit 16
 fi
 
+set -x
 # msf - rudimentary to get going
 pliopts="-qrent"
 version=false
 objparm=false
 componly=false
-objfile=''
-src=''
+outobj=''
+insrc=''
+inobjs=''
 for opt in $@; do
   opttext="${opt#-*}";
   if [ "${opttext}" = "${opt}" ]; then
     if ${objparm}; then
-      objfile="${opttext}"
+      outobj="${opttext}"
       objparm=false
     else
-      if [ "${src}x" = "x" ]; then
-        src="${opt}"
-      else 
-        src="${src} ${opt}"
+      # this is an input source or object file
+      ext=${opt##*.}
+      if [ "${ext}x" = "ox" ]; then
+        if [ "${inobjs}x" = "x" ]; then
+          inobjs="${opt}"
+        else 
+          inobjs="${inobjs} ${opt}"
+        fi
+      else
+        if [ "${insrc}x" = "x" ]; then
+          insrc="${opt}"
+        else 
+          insrc="${insrc} ${opt}"
+        fi
       fi
     fi
   else
@@ -67,7 +79,7 @@ if ${version} ; then
   (cd /tmp; echo " PLIVER: PROC OPTIONS(MAIN);" >$$.pli;  pli -qlist -qnc -c $$.pli >/dev/null 2>/dev/null ; cat $$.lst | head -1; rm $$.lst $$.pli)
 fi
   
-if [ "${src}x" = "x" ]; then
+if [ "${insrc}x" = "x" ]; then
   if ! ${version}; then
     echo "Unable to determine source file from command line $@" >&2
     exit 8
@@ -85,23 +97,78 @@ fi
 
 fromobj=''
 toobj=''
-if [ "${objfile}x" != "x" ]; then
+if [ "${outobj}x" != "x" ]; then
   if ${componly} ; then
-    firstsrc=${src%% *}
-    if [ "${firstsrc}" != "${src}" ]; then
+    firstinsrc=${insrc%% *}
+    if [ "${firstinsrc}" != "${insrc}" ]; then
       echo "No support for multiple source files being compiled with -c and -o option" >&2
       exit 8
     fi
-    srcwithoutextension=${src%.*}
-    fromobj="${srcwithoutextension}.o"
-    toobj="${objfile}"
+    insrcwithoutextension=${insrc%.*}
+    fromobj="${insrcwithoutextension}.o"
+    toobj="${outobj}"
   else
-    pliopts="${pliopts} -o ${objfile}"
+    pliopts="${pliopts} -o ${outobj}"
   fi
 fi
 
-"${realpli}" ${pliopts} $src
+set -x
+
+inobjsmod=''
+mod=false
+if [ "${inobjs}x" != "x" ]; then
+  # work around limitation in PL/I linker - does not like file with multiple dots
+  for inobj in ${inobjs}; do
+    objpath=$(dirname "${inobjs}")
+    objbase=$(basename "${inobjs}")
+    objbasesansext=${objbase%.*}
+    objbasetrdu=$(echo "${objbasesansext}" | tr '.' '_')
+    if [ "${objbasetrdu}x" != "${objbasesansext}x" ]; then
+      # object files are of form a.b.o - move it to a_b.o, do the link, move back
+      mod=true
+      newinobj="${objpath}/${objbasetrdu}.o"
+      if ! mv "${inobj}" "${newinobj}" ; then
+        echo "Problem trying to move ${inobj} to ${newinobj}" >&2
+        exit 8
+      fi
+      inobjmod="${newinobj}"
+    else
+      inobjmod="${inobj}"
+    fi
+    if [ "${inobjsmod}x" = "x" ]; then
+      inobjsmod="${inobjmod}"
+    else
+      inobjsmod="${inobjsmod} ${inobjmod}"
+    fi
+  done
+fi
+       
+#
+# debug start
+#
+echo "${realpli}" ${pliopts} $insrc >>/tmp/out
+if [ "${insrc}x" != "x" ]; then
+  baseinsrc=$(basename "${insrc}")
+  if [ "${insrc}" != "/tmp/${baseinsrc}" ]; then
+    cp "${insrc}" /tmp/"${baseinsrc}"
+  fi
+fi
+#
+# debug end
+#
+
+"${realpli}" ${pliopts} ${insrc} ${inobjsmod}
 rc=$?
+
+for inobj in ${inobjs}; do
+  modobj=${inobjsmod%% *}
+  inobjsmod=${inobjsmod#* }
+  if ! mv "${modobj}" "${inobj}"; then
+    echo "Problem trying to move back ${modobj} to ${inobj}" >&2
+    exit 8
+  fi
+done
+
 if [ $rc -lt 4 ]; then
   if [ -f "${fromobj}" ]; then
     if [ "${fromobj}" != "${toobj}" ]; then
