@@ -4,6 +4,9 @@
 # Requires 'bash' for extended 'type' command
 
 #set -x
+entrydir="${PWD}"
+echo "${PWD}: Input: $@" >>/tmp/out
+
 mydir=$(cd $(dirname $0) && echo $PWD)
 
 allpli=$(type -ap pli)
@@ -19,7 +22,6 @@ if [ "${realpli}" = "${mydir}/pli" ]; then
   exit 16
 fi
 
-set -x
 # msf - rudimentary to get going
 pliopts="-qrent"
 version=false
@@ -79,13 +81,12 @@ if ${version} ; then
   (cd /tmp; echo " PLIVER: PROC OPTIONS(MAIN);" >$$.pli;  pli -qlist -qnc -c $$.pli >/dev/null 2>/dev/null ; cat $$.lst | head -1; rm $$.lst $$.pli)
 fi
   
-if [ "${insrc}x" = "x" ]; then
+if [ "${insrc}x" = "x" ] && [ "${inobjs}x" = "x" ]; then
   if ! ${version}; then
     echo "Unable to determine source file from command line $@" >&2
     exit 8
   fi
 fi
-
 
 #
 # unfortunate restriction: to add 'support' for -c -o <object> we first write it to the local 
@@ -105,14 +106,19 @@ if [ "${outobj}x" != "x" ]; then
       exit 8
     fi
     insrcwithoutextension=${insrc%.*}
-    fromobj="${insrcwithoutextension}.o"
-    toobj="${outobj}"
+    insrcbase=$(basename "${insrcwithoutextension}")
+    fromobj="${entrydir}/${insrcbase}.o"
+    sansleadingslash=${outobj#/*}
+    if [ "${sansleadingslash}" = "${outobj}" ]; then 
+      # No leading slash
+      toobj="${entrydir}/${outobj}"
+    else
+      toobj="${outobj}"
+    fi
   else
     pliopts="${pliopts} -o ${outobj}"
   fi
 fi
-
-set -x
 
 inobjsmod=''
 mod=false
@@ -142,11 +148,22 @@ if [ "${inobjs}x" != "x" ]; then
     fi
   done
 fi
-       
+
+#
+# add in -I<dir> for each src directory that isn't ./
+#
+for s in "${insrc}"; do
+  sdir=$(dirname "${s}")
+  if [ "${sdir}" != "." ]; then
+    pliopts="-I${sdir} ${pliopts}"
+  fi
+done
+
+#
 #
 # debug start
 #
-echo "${realpli}" ${pliopts} $insrc >>/tmp/out
+echo "${PWD}:" "${realpli}" ${pliopts} $insrc $inobjsmod >>/tmp/out
 if [ "${insrc}x" != "x" ]; then
   baseinsrc=$(basename "${insrc}")
   if [ "${insrc}" != "/tmp/${baseinsrc}" ]; then
