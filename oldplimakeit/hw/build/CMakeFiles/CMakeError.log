@@ -1,0 +1,162 @@
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134144.16779029"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134144.16778471"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134145.16784843"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134145.83894106"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134146.50332735"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134146.16785058"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134147.16784996"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134147.67113428"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134148.83892948"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134148.16784968"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134149.16784245"
+
+The C compiler identification could not be found in "/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CompilerIdC/CEEDUMP.20221215.134149.16784428"
+
+Checking whether the C compiler is IAR using "" did not match "IAR .+ Compiler":
+Unable to determine source file from command line 
+Checking whether the C compiler is IAR using "" did not match "IAR .+ Compiler":
+Unable to determine source file from command line 
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags:  
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: -c 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --c++ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --ec++ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: -c;-I__does_not_exist__ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags:  
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: -c 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --c++ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --ec++ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler:  
+Build flags: 
+Id flags: -c;-I__does_not_exist__ 
+
+The output was:
+EDC5129I No such file or directory.
+
+
+Detecting C compiler ABI info failed to compile with the following output:
+Change Dir: /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/home/fultonm/zopen/boot/make/bin/make -f Makefile cmTC_92fa1/fast && /home/fultonm/zopen/boot/make/bin/make  -f CMakeFiles/cmTC_92fa1.dir/build.make CMakeFiles/cmTC_92fa1.dir/build
+make[1]: Entering directory '/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_92fa1.dir/CMakeCCompilerABI.c.o
+/home/fultonm/samples/plimakeit/hw/clang++    -o CMakeFiles/cmTC_92fa1.dir/CMakeCCompilerABI.c.o -c /home/fultonm/zopen/prod/CMake-heads.v3.24.2.20221201_084412.zos/share/cmake-3.24/Modules/CMakeCCompilerABI.c
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+Linking C executable cmTC_92fa1
+/home/fultonm/zopen/prod/CMake-heads.v3.24.2.20221201_084412.zos/bin/cmake -E cmake_link_script CMakeFiles/cmTC_92fa1.dir/link.txt --verbose=1
+/home/fultonm/samples/plimakeit/hw/clang++ CMakeFiles/cmTC_92fa1.dir/CMakeCCompilerABI.c.o -o cmTC_92fa1 
+FSUM3012 Specify at least one source, archive, or object operand to be processed.
+make[1]: Leaving directory '/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp'
+
+
+Cannot copy output executable
+  ''
+to destination specified by COPY_FILE:
+  '/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/3.24.2-zos/CMakeDetermineCompilerABI_C.bin'
+Unable to find the executable at any of:
+  /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp/cmTC_92fa1
+  /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp/Debug/cmTC_92fa1
+  /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp/Development/cmTC_92fa1
+
+

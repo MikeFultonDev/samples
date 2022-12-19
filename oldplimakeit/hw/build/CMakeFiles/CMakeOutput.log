@@ -1,0 +1,174 @@
+The system is: OS390 - 27.00 - 8561
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134144.16779029"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -c 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134144.16778471"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -Aa 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134145.16784843"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -D__CLASSIC_C__ 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134145.83894106"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134146.50332735"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -c;-I__does_not_exist__ 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134146.16785058"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134147.16784996"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -c 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134147.67113428"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -Aa 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134148.83892948"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -D__CLASSIC_C__ 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134148.16784968"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134149.16784245"
+
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /home/fultonm/samples/plimakeit/hw/clang++ 
+Build flags: 
+Id flags: -c;-I__does_not_exist__ 
+
+The output was:
+0
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CEEDUMP.20221215.134149.16784428"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/home/fultonm/zopen/boot/make/bin/make -f Makefile cmTC_3db43/fast && /home/fultonm/zopen/boot/make/bin/make  -f CMakeFiles/cmTC_3db43.dir/build.make CMakeFiles/cmTC_3db43.dir/build
+make[1]: Entering directory '/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_3db43.dir/testCCompiler.c.o
+/home/fultonm/samples/plimakeit/hw/clang++    -o CMakeFiles/cmTC_3db43.dir/testCCompiler.c.o -c /home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp/testCCompiler.c
+IBM0590S ONCODE=9250  The fetchable procedure with entry IBMZINN could not be found.
+         From entry point INVOKE_COMPILER at compile unit offset +000000002690E5CE at entry offset +00000000000002C6 at address 000000002690E5CE.
+Linking C executable cmTC_3db43
+/home/fultonm/zopen/prod/CMake-heads.v3.24.2.20221201_084412.zos/bin/cmake -E cmake_link_script CMakeFiles/cmTC_3db43.dir/link.txt --verbose=1
+/home/fultonm/samples/plimakeit/hw/clang++ CMakeFiles/cmTC_3db43.dir/testCCompiler.c.o -o cmTC_3db43 
+FSUM3012 Specify at least one source, archive, or object operand to be processed.
+make[1]: Leaving directory '/home/fultonm/samples/plimakeit/hw/build/CMakeFiles/CMakeTmp'
+
+
+
