@@ -1,6 +1,0 @@
-#!/bin/sh
-mydir=$(cd $(dirname $0) && echo $PWD)
-export PC=pli
-
-export PATH="${mydir}":${PATH}
-cd build && cmake --build .

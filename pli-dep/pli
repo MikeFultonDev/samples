@@ -58,7 +58,7 @@ for opt in $@; do
     if [ "${opttext}" = 'M' ]; then
       pliopts="${pliopts} -c -qxinfo=dep -qnc"
     else 
-      if [ "${opttext}" = 'v' ]; then
+      if [ "${opttext}" = 'v' ] || [ "${opttext}" = "-version" ]; then
         version=true
       else 
         if [ "${opttext}" = 'o' ]; then
@@ -76,13 +76,14 @@ for opt in $@; do
   fi
 done
 
-export STEPLIB=FULTONM.PORT.TEMPFE:FULTONM.PORT.TEMPBE:$STEPLIB
 if ${version} ; then
   (cd /tmp; echo " PLIVER: PROC OPTIONS(MAIN);" >$$.pli;  pli -qlist -qnc -c $$.pli >/dev/null 2>/dev/null ; cat $$.lst | head -1; rm $$.lst $$.pli)
 fi
   
 if [ "${insrc}x" = "x" ] && [ "${inobjs}x" = "x" ]; then
-  if ! ${version}; then
+  if ${version}; then
+    exit 0
+  else
     echo "Unable to determine source file from command line $@" >&2
     exit 8
   fi

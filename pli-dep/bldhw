@@ -1,9 +1,8 @@
 #!/bin/sh
 mydir=$(cd $(dirname $0) && echo $PWD)
-export PC=pli
-
-export PATH="${mydir}":${PATH}
-rm -rf build
-mkdir -p build
-cd build
-cmake --trace -D CMAKE_PLI_COMPILER=${PC} .. && cmake --build .
+export NINJA=ninja
+if ! ${NINJA} --version ; then
+  echo "Unable to find ${NINJA}" >&2
+  exit 4
+fi
+cd build && ${NINJA}

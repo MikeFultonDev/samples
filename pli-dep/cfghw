@@ -1,0 +1,26 @@
+#!/bin/sh
+export PC=pli
+export CMAKE=cmake
+export NINJA=ninja
+
+if ! ${PC} --version ; then
+  echo "Unable to find ${PC} compiler" >&2
+  exit 4
+fi
+if ! ${CMAKE} --version ; then
+  echo "Unable to find ${CMAKE}" >&2
+  exit 4
+fi
+if ! ${NINJA} --version ; then
+  echo "Unable to find ${NINJA}" >&2
+  exit 4
+fi
+
+#
+# Clean up old build info
+#
+rm -rf build
+mkdir -p build
+cd build
+
+${CMAKE} -D CMAKE_PLI_COMPILER=${PC} -G Ninja ..
