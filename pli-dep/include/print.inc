@@ -1,5 +1,5 @@
  /* Definition of 'Greeting' type */
- Define Structure
+ define structure
    1 Greeting,
    2 text char(80) varying;
- Declare print entry external;
+ declare Print entry external;

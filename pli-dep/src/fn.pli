@@ -1,7 +1,7 @@
- Print: procedure(greeting);
+ Print: procedure(Greeting);
    %include print;
-   declare greeting type Greeting;
+   declare Greeting type Greeting;
 
-   put edit (greeting.text) (a(80));
+   put edit (Greeting.Text) (a(80));
  end Print;
 

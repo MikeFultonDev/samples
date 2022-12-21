@@ -1,7 +1,7 @@
  /*HELLO program calls external subroutine 'print' to print greeting*/
  HELLO:   PROCEDURE OPTIONS (MAIN);
        %include print;
-       declare greeting type Greeting;
-       greeting.text = 'Hello';
-       call print(greeting);
+       declare Greeting type Greeting;
+       Greeting.Text = 'Hello';
+       call print(Greeting);
  END HELLO;
