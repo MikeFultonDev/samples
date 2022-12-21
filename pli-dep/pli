@@ -3,7 +3,6 @@
 # Simple front end to compile PL/I code
 # Requires 'bash' for extended 'type' command
 
-#set -x
 entrydir="${PWD}"
 echo "${PWD}: Input: $@" >>/tmp/out
 
@@ -126,8 +125,8 @@ mod=false
 if [ "${inobjs}x" != "x" ]; then
   # work around limitation in PL/I linker - does not like file with multiple dots
   for inobj in ${inobjs}; do
-    objpath=$(dirname "${inobjs}")
-    objbase=$(basename "${inobjs}")
+    objpath=$(dirname "${inobj}")
+    objbase=$(basename "${inobj}")
     objbasesansext=${objbase%.*}
     objbasetrdu=$(echo "${objbasesansext}" | tr '.' '_')
     if [ "${objbasetrdu}x" != "${objbasesansext}x" ]; then

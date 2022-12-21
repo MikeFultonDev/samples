@@ -1,0 +1,7 @@
+ Print: procedure(greeting);
+   %include print;
+   declare greeting type Greeting;
+
+   put edit (greeting.text) (a(80));
+ end Print;
+
