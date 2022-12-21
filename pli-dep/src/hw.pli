@@ -1,9 +1,7 @@
- /* HELLO program calls external subroutine 'print' */
+ /*HELLO program calls external subroutine 'print' to print greeting*/
  HELLO:   PROCEDURE OPTIONS (MAIN);
-       /* A PROGRAM TO OUTPUT HELLO WORLD */
        %include print;
-       Declare print entry external;
-       Declare greeting type Greeting;
+       declare greeting type Greeting;
        greeting.text = 'Hello';
        call print(greeting);
  END HELLO;
