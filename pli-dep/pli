@@ -26,9 +26,22 @@ pliopts="-qrent"
 version=false
 objparm=false
 componly=false
+depfile=false
+deptgt=false
 outobj=''
 insrc=''
 inobjs=''
+depfilename=''
+deptgtname=''
+
+# Description of -M -MD -MT -MF compiler options: https://programmer.group/gcc-m-mm-mmd-mf-mt.html
+# Sample options for dependency generation:
+#  pli -MD -MT deptgt.o -MF dep.d -o tgt.o -c src.pli
+#   where: deptgt.o is the target to write out to the dependency file
+#          dep.d is the dependency file to write to
+
+# Switch to 'getopt' once available
+
 for opt in $@; do
   opttext="${opt#-*}";
   if [ "${opttext}" = "${opt}" ]; then
@@ -36,42 +49,60 @@ for opt in $@; do
       outobj="${opttext}"
       objparm=false
     else
-      # this is an input source or object file
-      ext=${opt##*.}
-      if [ "${ext}x" = "ox" ]; then
-        if [ "${inobjs}x" = "x" ]; then
-          inobjs="${opt}"
-        else 
-          inobjs="${inobjs} ${opt}"
-        fi
+      if ${deptgt}; then
+        deptgtname="${opttext}"
+        deptgt=false
       else
-        if [ "${insrc}x" = "x" ]; then
-          insrc="${opt}"
-        else 
-          insrc="${insrc} ${opt}"
+        if ${depfile}; then
+          depfilename="${opttext}"
+          depfile=false
+        else
+          # this is an input source or object file
+          ext=${opt##*.}
+          if [ "${ext}x" = "ox" ]; then
+            if [ "${inobjs}x" = "x" ]; then
+              inobjs="${opt}"
+            else 
+              inobjs="${inobjs} ${opt}"
+            fi
+          else
+            if [ "${insrc}x" = "x" ]; then
+              insrc="${opt}"
+            else 
+              insrc="${insrc} ${opt}"
+            fi
+          fi
         fi
       fi
     fi
   else
     objparm=false
-    if [ "${opttext}" = 'M' ]; then
-      pliopts="${pliopts} -c -qxinfo=dep -qnc"
-    else 
-      if [ "${opttext}" = 'v' ] || [ "${opttext}" = "-version" ]; then
-        version=true
-      else 
-        if [ "${opttext}" = 'o' ]; then
-          objparm=true
-        else
-          if [ "${opttext}" = 'c' ]; then
-            componly=true
-            pliopts="${pliopts} -${opttext}"
-          else
-            pliopts="${pliopts} -${opttext}"
-          fi
-        fi
-      fi
-    fi
+    depfile=false
+    deptgt=false
+    case "${opttext}" in
+    MD)
+      pliopts="${pliopts} -c -qxinfo=dep"
+      ;;
+    MT)
+      deptgt=true
+      ;;
+    MF)
+      depfile=true
+      ;;
+    v|-version)
+      version=true
+      ;;
+    o)
+      objparm=true
+      ;;
+    c)
+      componly=true
+      pliopts="${pliopts} -${opttext}"
+      ;;
+    *)
+      pliopts="${pliopts} -${opttext}"
+      ;;
+    esac
   fi
 done
 
@@ -107,6 +138,9 @@ if [ "${outobj}x" != "x" ]; then
     fi
     insrcwithoutextension=${insrc%.*}
     insrcbase=$(basename "${insrcwithoutextension}")
+    if [ "${depfilename}x" != "x" ]; then
+      cmpdepfilename="${insrcbase}.d"  
+    fi
     fromobj="${entrydir}/${insrcbase}.o"
     sansleadingslash=${outobj#/*}
     if [ "${sansleadingslash}" = "${outobj}" ]; then 
@@ -174,8 +208,17 @@ fi
 # debug end
 #
 
-"${realpli}" ${pliopts} ${insrc} ${inobjsmod}
+"${realpli}" ${pliopts} ${insrc} ${inobjsmod} 
 rc=$?
+
+#
+# Move dependency file and prepend target 
+#
+if [ "${cmpdepfilename}x" != "x" ]; then
+  echo -n "${deptgtname}: " >"${depfilename}"
+  cat "${cmpdepfilename}" >>"${depfilename}"
+  rm "${cmpdepfilename}"
+fi
 
 for inobj in ${inobjs}; do
   modobj=${inobjsmod%% *}

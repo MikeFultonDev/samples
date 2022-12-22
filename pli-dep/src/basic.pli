@@ -1,0 +1,6 @@
+ /*HELLO program calls external subroutine 'print' to print greeting*/
+ HELLO:   PROCEDURE OPTIONS (MAIN);
+       declare Greeting VAR CHAR(80);
+       Greeting = 'Hello';
+       put edit (Greeting) (a(80));
+ END HELLO;
