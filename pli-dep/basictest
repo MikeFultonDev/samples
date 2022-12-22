@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# initial: Configure and build 'hw'. Should be 3 steps (compile, compile, link)
+# plitouch: Touch fn.pli. Should be 2 steps (compile, link)
+# inctouch: Touch print.inc. Should be 3 steps (compile, compile, link)
+
+init_out="/tmp/$$.hwtest_initial.out"
+plitouch_out="/tmp/$$.hwtest_plitouch.out"
+inctouch_out="/tmp/$$.hwtest_inctouch.out"
+
+if ! ./cfghw ; then
+  echo "Unable to configure hello-world build" >&2
+  exit 4
+fi
+
+#
+# initial:
+#
+if ! ./bldhw >"${init_out}" ; then
+  echo "Unable to build hello-world (initial). See ${init_out}" >&2
+  exit 4
+fi
+
+actual=$(tail -1 "${init_out}")
+expected="[3/3] Linking PLI executable hw"
+if [ "${actual}x" != "${expected}x" ]; then
+  echo "Unexpected output (initial). See ${init_out}" >&2
+  exit 4
+fi
+
+#
+# plitouch:
+#
+if ! touch src/fn.pli; then
+  echo "Internal error - could not find C file" >&2
+  exit 4
+fi
+
+if ! ./bldhw >"${plitouch_out}" ; then
+  echo "Unable to build hello-world (plitouch). See ${plitouch_out}" >&2
+  exit 4
+fi
+
+actual=$(tail -1 "${plitouch_out}")
+expected="[2/2] Linking PLI executable hw"
+if [ "${actual}x" != "${expected}x" ]; then
+  echo "Unexpected output (plitouch). See ${plitouch_out}" >&2
+  exit 4
+fi
+
+if ! sleep 1; then
+  echo "Internal error - unable to sleep for 1s" >&2
+  exit 4
+fi
+
+#
+# inctouch:
+#
+if ! touch include/print.inc; then
+  echo "Internal error - could not find H file" >&2
+  exit 4
+fi
+
+if ! ./bldhw >"${inctouch_out}" ; then
+  echo "Unable to build hello-world (inctouch). See ${inctouch_out}" >&2
+  exit 4
+fi
+
+actual=$(tail -1 "${inctouch_out}")
+expected="[3/3] Linking PLI executable hw"
+if [ "${actual}x" != "${expected}x" ]; then
+  echo "Unexpected output (inctouch). See ${inctouch_out}" >&2
+  exit 4
+fi
+
+if ! rm /tmp/$$*.out; then
+  echo "Internal error - unable to clean up temporary files" >&2
+  exit 4
+fi
+

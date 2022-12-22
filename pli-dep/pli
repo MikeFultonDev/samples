@@ -4,7 +4,7 @@
 # Requires 'bash' for extended 'type' command
 
 entrydir="${PWD}"
-echo "${PWD}: Input: $@" >>/tmp/out
+#echo "${PWD}: Input: $@" >>/tmp/out
 
 mydir=$(cd $(dirname $0) && echo $PWD)
 
@@ -197,19 +197,28 @@ done
 #
 # debug start
 #
-echo "${PWD}:" "${realpli}" ${pliopts} $insrc $inobjsmod >>/tmp/out
-if [ "${insrc}x" != "x" ]; then
-  baseinsrc=$(basename "${insrc}")
-  if [ "${insrc}" != "/tmp/${baseinsrc}" ]; then
-    cp "${insrc}" /tmp/"${baseinsrc}"
-  fi
-fi
+#echo "${PWD}:" "${realpli}" ${pliopts} $insrc $inobjsmod >>/tmp/out
+#if [ "${insrc}x" != "x" ]; then
+#  baseinsrc=$(basename "${insrc}")
+#  if [ "${insrc}" != "/tmp/${baseinsrc}" ]; then
+#    cp "${insrc}" /tmp/"${baseinsrc}"
+#  fi
+#fi
 #
 # debug end
 #
 
-"${realpli}" ${pliopts} ${insrc} ${inobjsmod} 
+#
+# Hack to suppress messages about no place to write SYSDEFSD definition side deck
+#
+"${realpli}" ${pliopts} ${insrc} ${inobjsmod} 2>/tmp/$$.pli.stderr >/tmp/$$.pli.stdout
 rc=$?
+if [ $rc -eq 4 ]; then
+  rc=0
+fi
+cat /tmp/$$.pli.stderr | grep -v 'IEW2689W' | grep -v 'FSUM3065' >&2
+cat /tmp/$$.pli.stdout
+rm /tmp/$$.pli.*
 
 #
 # Move dependency file and prepend target 
@@ -223,9 +232,11 @@ fi
 for inobj in ${inobjs}; do
   modobj=${inobjsmod%% *}
   inobjsmod=${inobjsmod#* }
-  if ! mv "${modobj}" "${inobj}"; then
-    echo "Problem trying to move back ${modobj} to ${inobj}" >&2
-    exit 8
+  if [ "${modobj}" != "${inobj}" ]; then
+    if ! mv "${modobj}" "${inobj}"; then
+      echo "Problem trying to move back ${modobj} to ${inobj}" >&2
+      exit 8
+    fi
   fi
 done
 
