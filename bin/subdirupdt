@@ -1,0 +1,78 @@
+#!/bin/sh
+#
+# The following sample uses find and sed to update a sub-directory of files
+# based on the search/replace specification you give
+#
+
+Syntax() {
+  echo "${myname}:" >&2
+  echo "" >&2
+  echo "  Search and replace a pattern across the files in all sub-directories of search location" >&2
+  echo "Restrictions:" >&2
+  echo "  Paths should not have ':' in them" >&2
+  echo "  Search/Replace string should not have '%' in them" >&2
+  echo "Syntax:" >&2
+  echo "  ${myname} <where to start search from> <search> <replace>" >&2
+  exit 4
+}
+
+myname=$(basename $0)
+dir="$1"
+search="$2"
+replace="$3"
+
+if [ $# -ne 3 ]; then
+  echo "3 parameters expected. $# given" >&2
+  Syntax
+fi
+
+if ! cd "${dir}" ; then
+  echo "Unable to find directory: ${dir}" >&2
+  Syntax
+fi
+
+if [ "${search##*%}" != "${search}" ]; then
+  echo "Search has % - currently a restriction" >&2
+  Syntax
+fi
+
+if [ "${replace##*%}" != "${replace}" ]; then
+  echo "Replace has % - currently a restriction" >&2
+  Syntax
+fi
+
+if echo "Hello" >/tmp/hello.$$ &&  sed -i 's/Hello/Jello/w /dev/stdout' /tmp/hello.$$ >/dev/null && rm /tmp/hello.$$ ; then
+  :
+else 
+  echo "Need a sed that supports 'sed -i with w flag'" >&2
+  Syntax
+fi
+
+if ! find --version >/dev/null || ! find --version >/dev/null ; then
+  echo "Need a modern version of find/xargs" >&2
+else
+  if ! find -name "*" -type f -print0 | xargs grep 'a' >/dev/null 2>&1 ; then
+    echo "Need a find that supports -print0 and xargs that supports -0" >&2
+    Syntax
+  fi
+fi
+
+echo "Search for <${search}> and replace with <${replace}>"
+allcolonfiles=`find . -name "*" -type f | grep ":" 2>/dev/null`
+if [ "${allcolonfiles}x" != "x" ]; then
+  echo "There are files in this directory tree that have a : in them - currently a restriction" >&2
+  Syntax
+fi
+
+files=`find . -name "*" -type f -print0 | xargs -0 grep "${search}" 2>/dev/null | awk -F':' ' { print $1; } ' | sort -u`
+
+count=0
+for f in ${files}; do
+  changes=$(sed -i "s%${search}%${replace}%w /dev/stdout" "${f}")
+  if [ "${changes}x" != "x" ]; then
+    count=$((count+1))
+  fi
+done
+
+echo "${count} files were updated"
+exit 0
