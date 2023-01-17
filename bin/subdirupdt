@@ -1,18 +1,33 @@
 #!/bin/sh
 #
-# The following sample uses find and sed to update a sub-directory of files
-# based on the search/replace specification you give
+# The following sample uses find, xargs, and sed to update a sub-directory of files
+# based on the search/replace specification you give. 
+# You can download a source or binary version of findutils which includes find and xargs from:
+#    https://github.com/ZOSOpenTools/findutilsport
+# You can download a source or binary version of sed from:
+#    https://github.com/ZOSOpenTools/sedport
+# These tools, and this script, are UNSUPPORTED but if you encounter problems, please open
+# an issue against the corresponding git repo.
 #
+# An introduction to the ZOSOpenTools ports, and the quality of the latest unsupported ports is available at:
+#    https://zosopentools.github.io/meta/#/
+# If you are interested in contributing, please consider attending our guild meetings:
+#    https://github.com/ZOSOpenTools/meta/discussions/categories/guild
 
 Syntax() {
   echo "${myname}:" >&2
   echo "" >&2
-  echo "  Search and replace a pattern across the files in all sub-directories of search location" >&2
+  echo "  Search and replace across the files in all sub-directories of search location" >&2
   echo "Restrictions:" >&2
   echo "  Paths should not have ':' in them" >&2
   echo "  Search/Replace string should not have '%' in them" >&2
   echo "Syntax:" >&2
   echo "  ${myname} <where to start search from> <search> <replace>" >&2
+  echo "  <search> and <replace> are passed directly to sed for a global replace, " >&2
+  echo "    in particular regular expressions are supported" >&2
+  echo "Where to get find, xargs, and sed:" >&2
+  echo "  Download find/xargs from: https://github.com/ZOSOpenTools/findutilsport/tags" >&2
+  echo "  Download sed from: https://github.com/ZOSOpenTools/sedport/tags" >&2
   exit 4
 }
 
@@ -41,6 +56,11 @@ if [ "${replace##*%}" != "${replace}" ]; then
   Syntax
 fi
 
+if [ "${search}x" = "${replace}x" ]; then
+  echo "Search and replace are identical - nothing to do" >&2
+  Syntax
+fi
+
 if echo "Hello" >/tmp/hello.$$ &&  sed -i 's/Hello/Jello/w /dev/stdout' /tmp/hello.$$ >/dev/null && rm /tmp/hello.$$ ; then
   :
 else 
@@ -51,7 +71,7 @@ fi
 if ! find --version >/dev/null || ! find --version >/dev/null ; then
   echo "Need a modern version of find/xargs" >&2
 else
-  if ! find -name "*" -type f -print0 | xargs grep 'a' >/dev/null 2>&1 ; then
+  if ! find -name "*" -type f -print0 | xargs -0 grep '.' >/dev/null 2>&1 ; then
     echo "Need a find that supports -print0 and xargs that supports -0" >&2
     Syntax
   fi
@@ -67,6 +87,8 @@ fi
 files=`find . -name "*" -type f -print0 | xargs -0 grep "${search}" 2>/dev/null | awk -F':' ' { print $1; } ' | sort -u`
 
 count=0
+IFS="
+"
 for f in ${files}; do
   changes=$(sed -i "s%${search}%${replace}%w /dev/stdout" "${f}")
   if [ "${changes}x" != "x" ]; then
