@@ -90,7 +90,7 @@ count=0
 IFS="
 "
 for f in ${files}; do
-  changes=$(sed -i "s%${search}%${replace}%w /dev/stdout" "${f}")
+  changes=$(sed -i "s%${search}%${replace}%gw /dev/stdout" "${f}")
   if [ "${changes}x" != "x" ]; then
     count=$((count+1))
   fi
