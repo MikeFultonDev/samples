@@ -79,7 +79,7 @@ else
 fi
 
 echo "Search for <${search}> and replace with <${replace}>"
-allcolonfiles=`find . -name "*" -type f | grep ":" 2>/dev/null`
+allcolonfiles=`find "${dir}" -name "*" -type f | grep ":" 2>/dev/null`
 if [ "${allcolonfiles}x" != "x" ]; then
   echo "There are files in this directory tree that have a : in them - currently a restriction" >&2
   Syntax
