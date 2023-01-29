@@ -1,0 +1,28 @@
+  1 //FULTONMA JOB MSGLEVEL=(1,1),TYPRUN=SCAN    
+  2 //MYPROG PROC P=IEFBR14                      
+    //PSTEP1 EXEC PGM=&P                         
+    // IF (RC LT 4) THEN                         
+    //PSTEP2 EXEC PGM=IEFBR14,PARM='Y'           
+    // ELSE                                      
+    //PSTEP2 EXEC PGM=IEFBR14,PARM='N'           
+    // ENDIF                                     
+    // PEND                                      
+  3 //STEP1 EXEC PROC=MYPROG,P=IEFBR14           
+  4 ++MYPROG PROC P=IEFBR14                      
+  5 ++PSTEP1 EXEC PGM=&P                         
+    IEFC653I SUBSTITUTION JCL - PGM=IEFBR14      
+  6 ++ IF (RC LT 4) THEN                         
+  7 ++PSTEP2 EXEC PGM=IEFBR14,PARM='Y'           
+  8 ++ ELSE                                      
+  9 ++PSTEP2 EXEC PGM=IEFBR14,PARM='N'           
+ 10 ++ ENDIF
+ 11 //STEP2 EXEC PROC=MYPROG
+ 12 ++MYPROG PROC P=IEFBR14
+ 13 ++PSTEP1 EXEC PGM=&P
+    IEFC653I SUBSTITUTION JCL - PGM=IEFBR14
+ 14 ++ IF (RC LT 4) THEN
+ 15 ++PSTEP2 EXEC PGM=IEFBR14,PARM='Y'
+ 16 ++ ELSE
+ 17 ++PSTEP2 EXEC PGM=IEFBR14,PARM='N'
+ 18 ++ ENDIF
+
