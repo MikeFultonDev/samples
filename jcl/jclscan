@@ -1,0 +1,75 @@
+#!/bin/env bash
+
+Syntax() {
+  echo "jclscan <jcl>" >&2
+  echo "  where <jcl> is either a fully qualified dataset" >&2
+  echo "  or an absolute path file" >&2
+  exit 4
+}
+
+#
+# this is an initial hack. Job card may be multiple lines
+# and may not be room on end of job card for extra text
+#
+UpdateJobCard() {
+  file="$1"
+
+  line=$( grep -E -n '^//[A-Z0-9]+ JOB ' "${file}" | awk -F':' '{print $1}' )
+  if ! sed -i "${line}s/\$/,TYPERUN=SCAN/" "${file}" ; then
+    echo "Unable to add TYPERUN=SCAN to the job card for ${file}" >&2
+    return 8
+  fi
+}
+
+
+if [ $# -ne 1 ]; then
+  Syntax
+fi
+
+jclfile="$1"
+
+# set up jcl copy file
+for tmp in "$TMPDIR" "$TMP" /tmp
+do
+  if [ ! -z $tmp ] && [ -d $tmp ]; then
+    jclcopy="$tmp/jclscan.copy.$RANDOM.jcl"
+    break
+  fi
+done
+if [ "${jclcopy}x" = "x" ]; then
+  echo "Unable to determine a location to write temporary files to" >&2
+  exit 8
+fi
+
+if [ "${jclfile#*/}" = "${jclfile}" ]; then
+  # Dataset
+  if ! dcp "${jclfile}" "${jclcopy}" 2>/dev/null ; then
+    echo "Unable to open dataset ${jclfile}" >&2
+    exit 8
+  fi
+else
+  # zFS file
+  if ! dcp "${jclfile}" "${jclcopy}" 2>/dev/null ; then
+    echo "Unable to open file ${jclfile}" >&2
+    exit 8
+  fi
+fi
+
+if ! UpdateJobCard "${jclcopy}" ; then
+  exit 8
+fi
+
+if ! jobnum=$( jsub -f "${jclcopy}" ) ; then
+  echo "Unable to submit ${jclcopy}" >&2
+  exit 8
+fi
+
+# 
+# Need to determine when job is scanned
+#
+sleep 1
+
+if ! pjdd "${jobnum}" "jes2" "jesjcl" ; then
+  echo "Unable to print expansion of ${jclfile} submitted as job ${jobnum}" >&2
+  exit 8
+fi
