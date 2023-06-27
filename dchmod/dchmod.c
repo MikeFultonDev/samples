@@ -16,6 +16,7 @@ typedef struct {
   unsigned int changes:1; 
   unsigned int quiet:1; 
   unsigned int verbose:1; 
+  unsigned int debug:1; 
   unsigned int recursive:1; 
   unsigned int reference:1; 
   unsigned int help:1; 
@@ -23,6 +24,17 @@ typedef struct {
   unsigned int no_preserve_hlq:1; 
   unsigned int preserve_hlq:1; 
 } Option;
+
+typedef struct {
+  unsigned int user:1;
+  unsigned int group:1;
+  unsigned int others:1;
+  unsigned int all:1;
+  unsigned int plus:1;
+  unsigned int read:1;
+  unsigned int write:1;
+  unsigned int exec:1;
+} ModeBits; 
 
 typedef struct {
   int tbd;
@@ -44,6 +56,7 @@ typedef struct {
 typedef struct {
   unsigned int opt_done:1;
   unsigned int mode_done:1;
+  unsigned int err:1;
 } ParameterState;
 
 static void syntax()
@@ -73,6 +86,7 @@ static int add_option(DatasetChangeMode* dcm, Option* option)
   dcm->o.changes |= option->changes;
   dcm->o.quiet |= option->quiet;
   dcm->o.verbose |= option->verbose;
+  dcm->o.debug |= option->debug;
   dcm->o.recursive |= option->recursive;
   dcm->o.reference |= option->reference;
   dcm->o.help |= option->help;
@@ -80,6 +94,32 @@ static int add_option(DatasetChangeMode* dcm, Option* option)
   dcm->o.no_preserve_hlq |= option->no_preserve_hlq;
   dcm->o.preserve_hlq |= option->preserve_hlq;
 
+  if (option->debug) {
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, 
+      "changes:%d\n"
+      "quiet:%d\n"
+      "verbose:%d\n"
+      "debug:%d\n"
+      "recursive:%d\n"
+      "reference:%d\n"
+      "help:%d\n"
+      "version:%d\n"
+      "no_preserve_hlq:%d\n"
+      "preserve_hlq:%d\n", 
+      dcm->o.changes,
+      dcm->o.quiet,
+      dcm->o.verbose,
+      dcm->o.debug,
+      dcm->o.recursive,
+      dcm->o.reference,
+      dcm->o.help,
+      dcm->o.version,
+      dcm->o.no_preserve_hlq,
+      dcm->o.preserve_hlq
+    );
+  }
+    
   return 0;
 }
 
@@ -88,7 +128,7 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
   Option* o = NULL;
   const char* p;
 
-  if (argv[entry][0] != '-') {
+  if ((argv[entry][0] != '-') || ps->opt_done) {
     ps->opt_done = 1;
     return o;
   }
@@ -102,6 +142,8 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
         o->quiet = 1;
       } else if (!strcmp(argv[entry], "--verbose")) {
         o->verbose = 1;
+      } else if (!strcmp(argv[entry], "--debug")) {
+        o->debug = 1;
       } else if (!strcmp(argv[entry], "--version")) {
         o->version = 1;
       } else if (!strcmp(argv[entry], "--no-preserve-hlq")) {
@@ -152,10 +194,69 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
   return o;
 }
 
+static Mode* update_mode(Mode* mode, ModeBits* mb) 
+{
+  if (!mode) {
+    mode = calloc(sizeof(Mode), 1);
+  }
+  return mode;
+}
+
 static Mode* mode(ParameterState* ps, const char* argv[], int entry) 
 {
-  return NULL;
+  Mode* m = NULL;
+  ModeBits mb = { 0 };
+
+  char c = argv[entry][0];
+  if (ps->mode_done) {
+    return m;
+  }
+  int i=0;
+
+  do {
+    switch (argv[entry][i]) {
+      case 'u':
+        mb.user=1;
+        break;
+      case 'g':
+        mb.user=1;
+        break;
+      case 'o':
+        mb.others=1;
+        break;
+      case 'a':
+        mb.all=1;
+        break;
+      case 'r':
+        mb.read=1;
+        break;
+      case 'w':
+        mb.write=1;
+        break;
+      case 'x':
+        mb.exec=1;
+        break;
+      case '-':
+        mb.plus=0;
+        break;
+      case '+':
+        mb.plus=1;
+        break;
+      case ',':
+      case '\0':
+        m = update_mode(m, &mb);
+        memset(&mb, 0, sizeof(ModeBits));
+        break;
+      default:
+        fprintf(stderr, "dchmod: Invalid file mode: %s\n", argv[entry]);
+        ps->err = 1;
+        return NULL;
+    }
+  } while (argv[entry][i++] != '\0');
+  ps->mode_done = 1;
+  return m;
 }
+
 static int add_mode(DatasetChangeMode* dcm, Mode* mode) 
 {
   return 0;
@@ -179,6 +280,19 @@ static int add_dataset(DatasetChangeMode* dcm, Dataset* dataset)
 
 static int change_mode(DatasetChangeMode* dcm)
 {
+
+  if (dcm->o.changes) {
+    fprintf(stderr, "changes not implemented yet\n");
+    return 1;
+  }
+  if (dcm->o.recursive) {
+    fprintf(stderr, "recursive not implemented yet\n");
+    return 1;
+  }
+  if (dcm->o.reference) {
+    fprintf(stderr, "no_preserve_hlq not implemented yet\n");
+    return 1;
+  }
   return 0;
 }
 
@@ -192,7 +306,7 @@ int main(int argc, const char* argv[])
   Dataset* d;
   int i;
 
-  for (i=1; i<argc; ++i) {
+  for (i=1; i<argc && !ps.err; ++i) {
     if ((o=options(&dcm, &ps, argv, i))) {
       add_option(&dcm, o);
     } else if ((m=mode(&ps, argv, i))) {
@@ -202,6 +316,10 @@ int main(int argc, const char* argv[])
     } else if ((d=dataset(&ps, argv, i))) {
       add_dataset(&dcm, d);
     }
+  }
+
+  if (ps.err) {
+    return 8;
   }
 
   if (dcm.o.version) {
