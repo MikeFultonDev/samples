@@ -43,7 +43,7 @@ typedef struct {
   const char* reference;
 } ReferenceDataset;
 typedef struct {
-  int tbd;
+  char name[45];
 } Dataset;
 
 typedef struct {
@@ -261,18 +261,30 @@ static int add_mode(DatasetChangeMode* dcm, Mode* mode)
 {
   return 0;
 }
+
 static ReferenceDataset* reference(ParameterState* ps, const char* argv[], int entry) 
 {
   return NULL;
 }
+
 static int compute_modes(DatasetChangeMode* dcm, ReferenceDataset* ref) 
 {
   return 0;
 }
+
 static Dataset* dataset(ParameterState* ps, const char* argv[], int entry) 
 {
-  return NULL;
+  DatasetError err = check_dataset(argv[entry]);
+  Dataset ds = NULL;
+  if (err) {
+    pdataseterror(err);
+    return ds;
+  }
+  ds = calloc(sizeof(Dataset), 1);
+  strcpy(ds.name, argv[entry]);
+  return ds;
 }
+
 static int add_dataset(DatasetChangeMode* dcm, Dataset* dataset) 
 {
   return 0;
