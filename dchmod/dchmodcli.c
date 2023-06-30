@@ -64,7 +64,7 @@ static ReferenceDataset* update_reference(DatasetChangeMode* dcm, const char* re
     pdataseterror(err);
     return NULL;
   }
-  dcm->r.reference = reference;
+  normalize_dataset(reference, &dcm->r.reference);
   return &dcm->r;
 }
 
@@ -195,12 +195,12 @@ static Mode* update_mode(Mode* mode, ModeBits* mb)
 static Mode* mode(ParameterState* ps, const char* argv[], int entry, Mode* m) 
 {
   ModeBits mb = { 0 };
+  int i=0;
 
   char c = argv[entry][0];
   if (ps->mode_done) {
     return NULL;
   }
-  int i=0;
 
   do {
     switch (argv[entry][i]) {
@@ -279,7 +279,7 @@ static Dataset* dataset(ParameterState* ps, const char* argv[], int entry, Datas
     pdataseterror(err);
     return NULL;
   }
-  ds->name = argv[entry];
+  normalize_dataset(argv[entry], &ds->name);
   return ds;
 }
 

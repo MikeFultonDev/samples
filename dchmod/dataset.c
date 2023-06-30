@@ -1,6 +1,7 @@
 #include "dataset.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 DatasetError check_dataset(const char* dataset) 
 {
@@ -121,6 +122,20 @@ DatasetError check_dataset(const char* dataset)
   } while (dataset[i++] != '\0');
 
   return DatasetOK;
+}
+
+char* normalize_dataset(const char* in, char* out)
+{
+  size_t len = strlen(in);
+  size_t i;
+  for (i=0; i<=len; ++i) {
+    if (islower(in[i])) {
+      out[i] = toupper(in[i]);
+    } else {
+      out[i] = in[i];
+    }
+  }
+  return out;
 }
 
 void pdataseterror(DatasetError err)

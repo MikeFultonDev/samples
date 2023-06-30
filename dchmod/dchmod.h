@@ -14,7 +14,7 @@
   } Mode;
 
   typedef struct {
-    const char* name;
+    const char name[45];
   } Dataset;
 
   int dchmod(Mode* mode, Dataset* dataset);
