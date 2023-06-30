@@ -27,7 +27,7 @@
   } ModeBits;
 
   typedef struct {
-    const char reference[45];
+    char reference[45];
   } ReferenceDataset;
 
   typedef struct {

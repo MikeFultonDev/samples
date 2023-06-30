@@ -61,10 +61,11 @@ static ReferenceDataset* update_reference(DatasetChangeMode* dcm, const char* re
 {
   DatasetError err = check_dataset(reference);
   if (err) {
+    fprintf(stderr, "Reference dataset: %s is invalid\n", reference);
     pdataseterror(err);
     return NULL;
   }
-  normalize_dataset(reference, &dcm->r.reference);
+  normalize_dataset(reference, dcm->r.reference);
   return &dcm->r;
 }
 
@@ -114,10 +115,11 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
       } else if (!strcmp(argv[entry], "--help")) {
         o->help = 1;
       } else if ((p=startswith(argv[entry], "--reference="))) {
-        o->reference = 1;
         if (!update_reference(dcm, p)) {
           syntax();
         }
+        o->reference = 1;
+        ps->mode_done = 1;
       } else {
         syntax();
       }
@@ -276,10 +278,11 @@ static Dataset* dataset(ParameterState* ps, const char* argv[], int entry, Datas
 {
   DatasetError err = check_dataset(argv[entry]);
   if (err) {
+    fprintf(stderr, "Dataset: %s is invalid\n", argv[entry]);
     pdataseterror(err);
     return NULL;
   }
-  normalize_dataset(argv[entry], &ds->name);
+  normalize_dataset(argv[entry], ds->name);
   return ds;
 }
 
@@ -358,11 +361,7 @@ static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset)
     print_mode_change("others", &dcm->m.others);
 
     fputs("Reference Dataset:", stderr);
-    if (dcm->r.reference) {
-      fprintf(stderr, "%s\n", dcm->r.reference);
-    } else {
-      fputs("not specified\n", stderr);
-    }
+    fprintf(stderr, "%s\n", dcm->r.reference);
     fputs("Dataset:", stderr);
     fprintf(stderr, "%s\n", dataset->name);
   }
