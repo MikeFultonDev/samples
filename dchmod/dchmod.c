@@ -1,3 +1,4 @@
+
 /*
  * dchmod: code to update dataset file 'mode' bits
  *         reduced interface from 'chmod':
@@ -31,6 +32,7 @@ typedef struct {
   unsigned int group:1;
   unsigned int others:1;
   unsigned int all:1;
+  unsigned int minus:1;
   unsigned int plus:1;
   unsigned int read:1;
   unsigned int write:1;
@@ -38,7 +40,15 @@ typedef struct {
 } ModeBits; 
 
 typedef struct {
-  int tbd;
+  signed int read:2;
+  signed int write:2;
+  signed int exec:2;
+} ModeChange;
+
+typedef struct {
+  ModeChange user;
+  ModeChange group;
+  ModeChange others;
 } Mode;
 
 typedef struct {
@@ -195,8 +205,37 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
   return o;
 }
 
+static void update_bits(ModeChange* users, ModeBits* mb) 
+{
+  if (mb->plus || mb->minus) {
+    int sign = (mb->plus) ? +1 : -1;
+    if (mb->read) {
+      users->read = sign;
+    }
+    if (mb->write) {
+      users->write = sign;
+    }
+    if (mb->exec) {
+      users->exec = sign;
+    }
+  }
+}
+
 static Mode* update_mode(Mode* mode, ModeBits* mb) 
 {
+  if (mb->all) {
+    mb->user = mb->group = mb->others = 1;
+  }
+  if (mb->user) {
+    update_bits(&mode->user, mb);
+  } 
+  if (mb->group) {
+    update_bits(&mode->group, mb);
+  } 
+  if (mb->others) {
+    update_bits(&mode->others, mb);
+  } 
+
   return mode;
 }
 
@@ -216,7 +255,7 @@ static Mode* mode(ParameterState* ps, const char* argv[], int entry, Mode* m)
         mb.user=1;
         break;
       case 'g':
-        mb.user=1;
+        mb.group=1;
         break;
       case 'o':
         mb.others=1;
@@ -234,7 +273,7 @@ static Mode* mode(ParameterState* ps, const char* argv[], int entry, Mode* m)
         mb.exec=1;
         break;
       case '-':
-        mb.plus=0;
+        mb.minus=1;
         break;
       case '+':
         mb.plus=1;
@@ -254,8 +293,24 @@ static Mode* mode(ParameterState* ps, const char* argv[], int entry, Mode* m)
   return m;
 }
 
+static void propagate_mode(ModeChange* result, ModeChange* next)
+{
+  if (next->read) {
+    result->read = next->read;
+  }
+  if (next->write) {
+    result->write = next->write;
+  }
+  if (next->exec) {
+    result->exec = next->exec;
+  }
+}
+
 static int add_mode(DatasetChangeMode* dcm, Mode* mode) 
 {
+  propagate_mode(&dcm->m.user, &mode->user);
+  propagate_mode(&dcm->m.group, &mode->group);
+  propagate_mode(&dcm->m.others, &mode->others);
   return 0;
 }
 
@@ -273,6 +328,31 @@ static Dataset* dataset(ParameterState* ps, const char* argv[], int entry, Datas
   }
   ds->name = argv[entry];
   return ds;
+}
+
+static void print_attribute_change(const char* title, int bits) 
+{
+  fprintf(stderr, " %s", title);
+  switch (bits) {
+    case -1: 
+      fputc('-', stderr); 
+      break;
+    case +1: 
+      fputc('+', stderr); 
+      break;
+    case 0: 
+      fputc('=', stderr); 
+      break;
+  }
+}
+
+static void print_mode_change(const char* title, ModeChange* cm) 
+{
+  fprintf(stderr, "%s:", title);
+  print_attribute_change("r", cm->read);
+  print_attribute_change("w", cm->write);
+  print_attribute_change("x", cm->exec);
+  fputs("\n", stderr);
 }
 
 static int change_mode(DatasetChangeMode* dcm, Dataset* dataset)
@@ -299,7 +379,7 @@ static int change_mode(DatasetChangeMode* dcm, Dataset* dataset)
    * Write the actual code here to do the change mode
    */
   if (dcm->o.debug) {
-    fputs("Options:", stderr);
+    fputs("Options:\n", stderr);
     fprintf(stderr, 
       "changes:%d\n"
       "quiet:%d\n"
@@ -322,6 +402,10 @@ static int change_mode(DatasetChangeMode* dcm, Dataset* dataset)
       dcm->o.no_preserve_hlq,
       dcm->o.preserve_hlq
     );
+    fputs("Mode change:\n", stderr);
+    print_mode_change("user", &dcm->m.user);
+    print_mode_change("group", &dcm->m.group);
+    print_mode_change("others", &dcm->m.others);
 
     fputs("Reference Dataset:", stderr);
     if (dcm->r.reference) {
@@ -329,6 +413,8 @@ static int change_mode(DatasetChangeMode* dcm, Dataset* dataset)
     } else {
       fputs("not specified\n", stderr);
     }
+    fputs("Dataset:", stderr);
+    fprintf(stderr, "%s\n", dataset->name);
   }
 
   return 0;
@@ -345,7 +431,7 @@ int main(int argc, const char* argv[])
   int i;
 
   for (i=1; i<argc && !ps.err && !ps.mode_done; ++i) {
-    if ((options(&dcm, &ps, argv, i, &o))) {
+    if (options(&dcm, &ps, argv, i, &o)) {
       add_option(&dcm, &o);
     } else if (mode(&ps, argv, i, &m)) {
       add_mode(&dcm, &m);
