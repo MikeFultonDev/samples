@@ -57,7 +57,7 @@ static const char* startswith(const char* str, const char* prefix)
   }
 }
 
-static ReferenceDataset* update_reference(DatasetChangeMode* dcm, const char* reference) 
+static Dataset* update_reference(DatasetChangeMode* dcm, const char* reference) 
 {
   DatasetError err = check_dataset(reference);
   if (err) {
@@ -65,7 +65,7 @@ static ReferenceDataset* update_reference(DatasetChangeMode* dcm, const char* re
     pdataseterror(err);
     return NULL;
   }
-  normalize_dataset(reference, dcm->r.reference);
+  normalize_dataset(reference, dcm->r.name);
   return &dcm->r;
 }
 
@@ -269,11 +269,6 @@ static int add_mode(DatasetChangeMode* dcm, Mode* mode)
   return 0;
 }
 
-static int compute_modes(DatasetChangeMode* dcm) 
-{
-  return 0;
-}
-
 static Dataset* dataset(ParameterState* ps, const char* argv[], int entry, Dataset* ds) 
 {
   DatasetError err = check_dataset(argv[entry]);
@@ -311,7 +306,7 @@ static void print_mode_change(const char* title, ModeChange* cm)
   fputs("\n", stderr);
 }
 
-static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset)
+static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset, void* work)
 {
 
   if (dcm->o.changes) {
@@ -361,12 +356,12 @@ static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset)
     print_mode_change("others", &dcm->m.others);
 
     fputs("Reference Dataset:", stderr);
-    fprintf(stderr, "%s\n", dcm->r.reference);
+    fprintf(stderr, "%s\n", dcm->r.name);
     fputs("Dataset:", stderr);
     fprintf(stderr, "%s\n", dataset->name);
   }
 
-  return dchmod(&dcm->m, dataset);
+  return dchmod(&dcm->m, dataset, work);
 }
 
 int main(int argc, const char* argv[])
@@ -375,9 +370,10 @@ int main(int argc, const char* argv[])
   ParameterState ps = { 0 };
   Option o = {0};
   Mode m = { 0 } ;
-  ReferenceDataset r = { 0 };
+  Dataset r = { 0 };
   Dataset d = { 0 };
   int i;
+  void* work;
 
   for (i=1; i<argc && !ps.err && !ps.mode_done; ++i) {
     if (options(&dcm, &ps, argv, i, &o)) {
@@ -399,22 +395,25 @@ int main(int argc, const char* argv[])
     syntax();
   }
 
-  if (dcm.o.reference) {
-    if (compute_modes(&dcm)) {
-      return 8;
-    }
+  work = dchmod_init(NULL, &dcm.m, (dcm.o.reference) ? &dcm.r : NULL);
+  if (!work) {
+    fprintf(stderr, "Error: Unable to retrieve RACF base information\n");
+    return 8;
   }
 
   while (i < argc) {
     if (!dataset(&ps, argv, i, &d)) {
         return 8;
     } else {
-      if (change_mode_cli(&dcm, &d)) {
+      if (change_mode_cli(&dcm, &d, work)) {
         return 8;
       }
     }
     ++i;
   }
+  dchmod_term(work);
+
+  return 0;
 }
 
 

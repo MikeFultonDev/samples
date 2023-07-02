@@ -27,13 +27,9 @@
   } ModeBits;
 
   typedef struct {
-    char reference[45];
-  } ReferenceDataset;
-
-  typedef struct {
     Option o;
     Mode m;
-    ReferenceDataset r;
+    Dataset r;
   } DatasetChangeMode;
 
   typedef struct {
