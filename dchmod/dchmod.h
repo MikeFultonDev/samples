@@ -19,6 +19,6 @@
 
   void* dchmod_init(const char* id, Mode* mode, Dataset* reference);
   int dchmod(Mode* mode, Dataset* dataset, void* work);
-  void* dchmod_term(void* work);
+  void dchmod_term(void* work);
 #endif
 

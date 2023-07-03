@@ -1,11 +1,14 @@
-#define _POSIX_SOURCE
+#define _POSIX_SOURCE 1
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include "dchmod.h"
+
+char *strtok_r(char *str, const char *delim, char **saveptr);
 
 #define USER_SIZE 8
 #define GROUP_SIZE 8
@@ -15,16 +18,47 @@ typedef struct {
   char** groups; 
 } SAFInfo;
 
-static int runcmd(const char* cmd, char* argv[], FILE** out, FILE** err) 
+static int convert_memfile_to_array(FILE* fp, char** arr, size_t* size)
+{
+  int rc;
+
+  *size = ftell(fp); 
+  if (*size == -1) {
+    return -1;
+  }
+  rc = fseek(fp, 0L, SEEK_SET);
+  if (rc) {
+    return -1;
+  }
+
+  *arr = malloc((*size) + 1);
+  if (!(*arr)) {
+    return -1;
+  }
+  rc = fread(*arr, 1, *size, fp);
+  if (rc != *size) {
+    return -1;
+  }
+  (*arr)[*size] = '\0';
+  fclose(fp);
+
+  return 0;
+}
+
+static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize)
 {
   char buffer[10000];
   pid_t pid;
+  FILE* outfp;
+  FILE* errfp;
   ssize_t outbytes = 0;
   ssize_t errbytes = 0;
   int outfd[2]; 
   int errfd[2];
   int wstatus;
+  int progrc;
   int rc;
+  int i;
 
   if (pipe(outfd) == -1) {
     perror("stdout/stdin pipe");
@@ -59,12 +93,12 @@ static int runcmd(const char* cmd, char* argv[], FILE** out, FILE** err)
   close(outfd[1]);
   close(errfd[1]);
 
-  *out = fopen("stdout-memory", "w+,type=memory");
-  if (! *out) {
+  outfp = fopen("stdout-memory", "w+,type=memory");
+  if (! outfp) {
     return -1;
   }
-  *err = fopen("stderr-memory", "w+,type=memory");
-  if (! *err) {
+  errfp = fopen("stderr-memory", "w+,type=memory");
+  if (! errfp) {
     return -1;
   }
 
@@ -76,7 +110,7 @@ static int runcmd(const char* cmd, char* argv[], FILE** out, FILE** err)
         return -1;
       }
     } else {
-      fprintf(out, "%*.*s", outbytes, outbytes, buffer);
+      fprintf(outfp, "%*.*s", (int) outbytes, (int) outbytes, buffer);
     }
 
     errbytes = read(errfd[0], buffer, sizeof(buffer));
@@ -86,34 +120,35 @@ static int runcmd(const char* cmd, char* argv[], FILE** out, FILE** err)
         return -1;
       }
     } else {
-      fprintf(err, "%*.*s", errbytes, errbytes, buffer);
+      fprintf(errfp, "%*.*s", (int) errbytes, (int) errbytes, buffer);
     }
-  } while (outbytes != 0 && errbytes != 0);
+  } while (outbytes != 0 || errbytes != 0);
 
   close(outfd[0]);
   close(errfd[0]);
 
-  wait(pid, &wstatus, 0);
-  rc = WEXITSTATUS(wstatus);
+  waitpid(pid, &wstatus, 0);
+  progrc = WEXITSTATUS(wstatus);
 
-  rc = fseek(*out, 0L, SEEK_SET);
+  rc = convert_memfile_to_array(outfp, out, outsize);
+  if (rc) {
+    return -1;
+  }
+  rc = convert_memfile_to_array(errfp, err, errsize);
   if (rc) {
     return -1;
   }
 
-  rc = fseek(*err, 0L, SEEK_SET);
-  if (rc) {
-    return -1;
-  }
-
-  return rc;
+  return progrc;
 }
 
 static Mode* drdmod(Dataset* dataset, SAFInfo* info)
 {
   char cmd[256];
-  FILE* out;
-  FILE* err;
+  char* out;
+  char* err;
+  size_t outsize;
+  size_t errsize;
   int argc=2;
   char* argv[] = { "tsocmd", NULL, NULL }; 
   int rc;
@@ -125,7 +160,7 @@ static Mode* drdmod(Dataset* dataset, SAFInfo* info)
   }
   argv[1] = cmd;
 
-  rc = runcmd("/bin/tsocmd", argv, &out, &err);
+  rc = runcmd("/bin/tsocmd", argv, &out, &outsize, &err, &errsize);
 
   return NULL;
 }
@@ -161,8 +196,13 @@ CATEGORY-AUTHORIZATION
 static SAFInfo* rdinfo(SAFInfo* info) 
 {
   char cmd[256];
-  FILE* out;
-  FILE* err;
+  char* out;
+  char* err;
+  char* saveptr;
+  char* loc;
+  char* buff;
+  size_t outsize;
+  size_t errsize;
   int argc=2;
   char* argv[] = { "tsocmd", NULL, NULL }; 
   int rc;
@@ -174,7 +214,18 @@ static SAFInfo* rdinfo(SAFInfo* info)
   }
   argv[1] = cmd;
 
-  rc = runcmd("/bin/tsocmd", argv, &out, &err);
+  rc = runcmd("/bin/tsocmd", argv, &out, &outsize, &err, &errsize);
+
+  printf("rc:%d out:%p outsize:%zu err:%p errsize:%zu\n", rc, out, outsize, err, errsize);
+
+  buff = out;
+  rc = printf("out\n%s\n", out);
+  printf("printed %d characters\n", rc);
+  printf("err\n%s\n", err);
+  while ((loc = strstr(buff, "GROUP="))) {
+    printf("%14.14s\n", loc);
+    buff=&loc[1];
+  }
 
   return NULL;
 }
@@ -266,10 +317,12 @@ void* dchmod_init(const char* userid, Mode* mode, Dataset* reference)
 
   strncpy(info->userid, userid, USER_SIZE+1);
 
+  rdinfo(info);
+
   return work;
 }
 
-void* dchmod_term(void* work)
+void dchmod_term(void* work)
 {
   if (work) {
     free(work);
