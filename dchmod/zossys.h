@@ -20,6 +20,6 @@
    *               The output is NULL terminated.
    *         errsize: The length of the output. 
    */
-  static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize);
+  int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize);
 
 #endif

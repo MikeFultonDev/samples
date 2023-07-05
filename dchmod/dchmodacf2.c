@@ -1,4 +1,5 @@
 #include "dchmod.h"
+#include "dchmodsaf.h"
 #include "dchmodacf2.h"
 
 int acf2_init(SAFInfo* info) {

@@ -62,7 +62,7 @@ static size_t read_stream_into_memfile(int strfd, FILE* memfile, char* buffer, s
   return memfilebytes;
 }
 
-static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize)
+int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize)
 {
   char buffer[10000];
   pid_t pid;

@@ -52,6 +52,11 @@ void* dchmod_init(const char* userid, Mode* mode, Dataset* reference, int verbos
 
   info->reference = reference;
 
+  if (info->verbose) {
+    fprintf(stderr, "SAF Info:\n User ID: %s\n Reference Dataset: %s\n", 
+      info->userid, (reference == NULL) ? "<null>" : reference->name);
+  }
+
   provider = saf_provider();
 
   switch (provider) {
@@ -70,11 +75,6 @@ void* dchmod_init(const char* userid, Mode* mode, Dataset* reference, int verbos
 
   if (rc) {
     return NULL;
-  }
-
-  if (info->verbose) {
-    fprintf(stderr, "SAF Info:\n User ID: %s\n Reference Dataset: %s\n", 
-      info->userid, (reference == NULL) ? "<null>" : reference->name);
   }
 
   return work;

@@ -1,4 +1,5 @@
 #include "dchmod.h"
+#include "dchmodsaf.h"
 #include "dchmodts.h"
 
 int topsecret_init(SAFInfo* info) {

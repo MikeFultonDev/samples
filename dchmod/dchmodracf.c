@@ -96,8 +96,12 @@ static char* getcol(char* buffer, size_t num)
 {
   return NULL;
 }
+static int dupdtmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
+{
+  return -1;
+}
 
-static Mode* drdmod(Dataset* dataset, SAFInfo* info)
+static int drdmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
 {
   char cmd[256];
   char* out;
@@ -115,14 +119,14 @@ static Mode* drdmod(Dataset* dataset, SAFInfo* info)
   rc = snprintf(cmd, sizeof(cmd), "LISTDSD DATASET('%s') GENERIC AUTHUSER", dataset->name);
   if (rc >= sizeof(cmd)) {
     fprintf(stderr, "Internal error. Truncation occurred\n");
-    return NULL;
+    return -1;
   }
   argv[1] = cmd;
 
   rc = runcmd("/bin/tsocmd", argv, &out, &outsize, &err, &errsize);
   if (rc != 0) {
     fprintf(stderr, "Internal error: %s failed with rc: %d\n", cmd, rc);
-    return NULL;
+    return -1;
   }
 
   /*
@@ -133,27 +137,27 @@ static Mode* drdmod(Dataset* dataset, SAFInfo* info)
   loc = findhdr(out, gencols);
   if (!loc) {
     fprintf(stderr, "Unable to find general column header from command %s\n", cmd);
-    return NULL;
+    return -1;
   }
 
   loc = skipdashes(loc);
   if (!loc) {
     fprintf(stderr, "Unable to skip dashed lines after general column header from command %s\n", cmd);
-    return NULL;
+    return -1;
   }
 
   owner = getcol(loc, 2);
   if (!owner) {
     fprintf(stderr, "Unable to determine dataset owner from command %s\n", cmd);
-    return NULL;
+    return -1;
   }
   uacc = getcol(loc, 3);
   if (!loc) {
     fprintf(stderr, "Unable to determine universal access from command %s\n", cmd);
-    return NULL;
+    return -1;
   }
 
-  return NULL;
+  return 0;
 }
   
 /*
@@ -197,6 +201,7 @@ static SAFInfo* rdinfo(SAFInfo* info)
   char* saveptr;
   char* loc;
   char* buff;
+  RACFInfo* racfinfo;
   size_t outsize;
   size_t errsize;
   int argc=2;
@@ -224,7 +229,8 @@ static SAFInfo* rdinfo(SAFInfo* info)
     return NULL;
   }
 
-  dupword(&loc[DEFAULT_GROUP_PREFIX_LEN], info->default_group.name, GROUP_SIZE);
+  racfinfo = (RACFInfo*) (info->provider);
+  dupword(&loc[DEFAULT_GROUP_PREFIX_LEN], racfinfo->default_group.name, GROUP_SIZE);
 
   buff = out;
   while ((loc = strstr(buff, GROUP_PREFIX))) {
@@ -232,12 +238,12 @@ static SAFInfo* rdinfo(SAFInfo* info)
     buff=&loc[GROUP_PREFIX_LEN];
   }
 
-  info->numgroups = numgroups;
-  info->group = calloc(numgroups, sizeof(SAFGroup));
+  racfinfo->numgroups = numgroups;
+  racfinfo->group = calloc(numgroups, sizeof(RACFGroup));
   buff = out;
   i=0;
   while ((loc = strstr(buff, GROUP_PREFIX))) {
-    dupword(&loc[GROUP_PREFIX_LEN], info->group[i].name, GROUP_SIZE);
+    dupword(&loc[GROUP_PREFIX_LEN], racfinfo->group[i].name, GROUP_SIZE);
     buff=&loc[GROUP_PREFIX_LEN];
     ++i;
   }
@@ -245,14 +251,35 @@ static SAFInfo* rdinfo(SAFInfo* info)
 }
 
 int racf_init(SAFInfo* info) {
-  /*
-   * Not implemented
-   */
-  return -1;
+  info->drdmod = drdmod;
+  info->dupdtmod = dupdtmod;
+  info->provider = calloc(sizeof(RACFInfo), 1);
+  if (!info->provider) {
+    return -1;
+  }
+  if (!rdinfo(info)) {
+    return -1;
+  }
+  if (info->verbose) {
+    RACFInfo* racfinfo = (RACFInfo*) (info->provider);
+    size_t i;
+
+    fprintf(stderr, "RACF Default Group: %s\nNumber of Groups:%u\n", 
+      racfinfo->default_group.name, racfinfo->numgroups);
+    for (i=0; i<racfinfo->numgroups; ++i) {
+      fprintf(stderr, " %s\n", racfinfo->group[i].name);
+    }
+  }
+  return 0;
 }
+
 int racf_term(SAFInfo* info) {
-  /*
-   * Not implemented
-   */
-  return -1;
+  if (info->provider) {
+    RACFInfo* racfinfo = (RACFInfo*) (info->provider);
+    if (racfinfo->group) {
+      free(racfinfo->group);
+    }
+    free(info->provider);
+  }
+  return 0;
 }
