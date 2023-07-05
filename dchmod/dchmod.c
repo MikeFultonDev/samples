@@ -8,16 +8,32 @@
 #include <sys/wait.h>
 #include "dchmod.h"
 
-char *strtok_r(char *str, const char *delim, char **saveptr);
-
 #define USER_SIZE 8
 #define GROUP_SIZE 8
+
+typedef struct {
+  char name[GROUP_SIZE+1];
+} SAFGroup;
+
 typedef struct {
   char userid[USER_SIZE+1];
-  char default_group[GROUP_SIZE+1];
-  char** groups; 
+  SAFGroup default_group;
+  unsigned int verbose:1;
+  size_t numgroups;
+  SAFGroup* group; 
 } SAFInfo;
 
+static char* dupword(const char* in, char* out, size_t maxsize) 
+{
+  size_t i=0;
+
+  for (i=0; in[i] != ' ' && i <= maxsize; ++i) {
+    out[i] = in[i];
+  }
+  out[i] = '\0';
+  return out;
+}
+    
 static int convert_memfile_to_array(FILE* fp, char** arr, size_t* size)
 {
   int rc;
@@ -45,14 +61,36 @@ static int convert_memfile_to_array(FILE* fp, char** arr, size_t* size)
   return 0;
 }
 
+static size_t read_stream_into_memfile(int strfd, FILE* memfile, char* buffer, size_t buffsz)
+{
+  ssize_t streambytes;
+  size_t memfilebytes;
+
+  streambytes = read(strfd, buffer, buffsz);
+  if (streambytes == -1) {
+    if (errno != EINTR) { 
+      perror("read-stream");
+      return -1;
+    }
+  } else {
+    memfilebytes = fwrite(buffer, 1, (size_t) streambytes, memfile); 
+    if (memfilebytes != streambytes) {
+      perror("write-memfile");
+      return -1;
+    }
+  }
+  return memfilebytes;
+}
+
 static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, char** err, size_t* errsize)
 {
   char buffer[10000];
   pid_t pid;
   FILE* outfp;
   FILE* errfp;
-  ssize_t outbytes = 0;
-  ssize_t errbytes = 0;
+  size_t outbytes;
+  size_t errbytes;
+  size_t byteswritten;
   int outfd[2]; 
   int errfd[2];
   int wstatus;
@@ -94,35 +132,18 @@ static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, ch
   close(errfd[1]);
 
   outfp = fopen("stdout-memory", "w+,type=memory");
-  if (! outfp) {
+  if (!outfp) {
     return -1;
   }
   errfp = fopen("stderr-memory", "w+,type=memory");
-  if (! errfp) {
+  if (!errfp) {
     return -1;
   }
 
   do {
-    outbytes = read(outfd[0], buffer, sizeof(buffer));
-    if (outbytes == -1) {
-      if (errno != EINTR) { 
-        perror("read-out");
-        return -1;
-      }
-    } else {
-      fprintf(outfp, "%*.*s", (int) outbytes, (int) outbytes, buffer);
-    }
-
-    errbytes = read(errfd[0], buffer, sizeof(buffer));
-    if (errbytes == -1) {
-      if (errno != EINTR) { 
-        perror("read-err");
-        return -1;
-      }
-    } else {
-      fprintf(errfp, "%*.*s", (int) errbytes, (int) errbytes, buffer);
-    }
-  } while (outbytes != 0 || errbytes != 0);
+    outbytes = read_stream_into_memfile(outfd[0], outfp, buffer, sizeof(buffer));
+    errbytes = read_stream_into_memfile(errfd[0], errfp, buffer, sizeof(buffer));
+  } while (outbytes > 0 || errbytes > 0);
 
   close(outfd[0]);
   close(errfd[0]);
@@ -193,6 +214,11 @@ CATEGORY-AUTHORIZATION
  NONE SPECIFIED
  */
 
+#define DEFAULT_GROUP_PREFIX     "DEFAULT-GROUP="
+#define DEFAULT_GROUP_PREFIX_LEN (sizeof(DEFAULT_GROUP_PREFIX)-1)
+#define GROUP_PREFIX             " GROUP="
+#define GROUP_PREFIX_LEN         (sizeof(GROUP_PREFIX)-1)
+
 static SAFInfo* rdinfo(SAFInfo* info) 
 {
   char cmd[256];
@@ -206,6 +232,8 @@ static SAFInfo* rdinfo(SAFInfo* info)
   int argc=2;
   char* argv[] = { "tsocmd", NULL, NULL }; 
   int rc;
+  size_t numgroups=0;
+  size_t i;
 
   rc = snprintf(cmd, sizeof(cmd), "LISTUSER %s", info->userid);
   if (rc >= sizeof(cmd)) {
@@ -215,19 +243,35 @@ static SAFInfo* rdinfo(SAFInfo* info)
   argv[1] = cmd;
 
   rc = runcmd("/bin/tsocmd", argv, &out, &outsize, &err, &errsize);
-
-  printf("rc:%d out:%p outsize:%zu err:%p errsize:%zu\n", rc, out, outsize, err, errsize);
-
-  buff = out;
-  rc = printf("out\n%s\n", out);
-  printf("printed %d characters\n", rc);
-  printf("err\n%s\n", err);
-  while ((loc = strstr(buff, "GROUP="))) {
-    printf("%14.14s\n", loc);
-    buff=&loc[1];
+  if (rc != 0) {
+    fprintf(stderr, "Unexpected return code %d from %s\n", rc, cmd);
+    return NULL;
   }
 
-  return NULL;
+  loc = strstr(out, DEFAULT_GROUP_PREFIX);
+  if (!loc) {
+    fprintf(stderr, "Internal Error. No default group prefix returned from %s\n", cmd);
+    return NULL;
+  }
+
+  dupword(&loc[DEFAULT_GROUP_PREFIX_LEN], info->default_group.name, GROUP_SIZE);
+
+  buff = out;
+  while ((loc = strstr(buff, GROUP_PREFIX))) {
+    ++numgroups;
+    buff=&loc[GROUP_PREFIX_LEN];
+  }
+
+  info->numgroups = numgroups;
+  info->group = calloc(numgroups, sizeof(SAFGroup));
+  buff = out;
+  i=0;
+  while ((loc = strstr(buff, GROUP_PREFIX))) {
+    dupword(&loc[GROUP_PREFIX_LEN], info->group[i].name, GROUP_SIZE);
+    buff=&loc[GROUP_PREFIX_LEN];
+    ++i;
+  }
+  return info;
 }
 
 /*
@@ -291,10 +335,12 @@ static int compute_modes(Mode* mode, Dataset* reference)
   return 0;
 }
 
-void* dchmod_init(const char* userid, Mode* mode, Dataset* reference)
+void* dchmod_init(const char* userid, Mode* mode, Dataset* reference, int verbose)
 {
   SAFInfo* info;
   void* work;
+  size_t i;
+
   work = calloc(sizeof(SAFInfo), 1);
   if (!work) {
     return NULL;
@@ -316,8 +362,18 @@ void* dchmod_init(const char* userid, Mode* mode, Dataset* reference)
   }
 
   strncpy(info->userid, userid, USER_SIZE+1);
+  info->verbose = verbose;
 
-  rdinfo(info);
+  if (!rdinfo(info)) {
+    return NULL;
+  }
+
+  if (info->verbose) {
+    fprintf(stderr, "RACF Info:\n Default Group: %s\n Groups:\n", info->default_group.name);
+    for (i=0; i<info->numgroups; ++i) {
+      fprintf(stderr, "  %s\n", info->group[i].name);
+    }
+  }
 
   return work;
 }

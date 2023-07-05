@@ -395,7 +395,7 @@ int main(int argc, const char* argv[])
     syntax();
   }
 
-  work = dchmod_init(NULL, &dcm.m, (dcm.o.reference) ? &dcm.r : NULL);
+  work = dchmod_init(NULL, &dcm.m, (dcm.o.reference) ? &dcm.r : NULL, dcm.o.verbose);
   if (!work) {
     fprintf(stderr, "Error: Unable to retrieve RACF base information\n");
     return 8;
