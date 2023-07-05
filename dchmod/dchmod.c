@@ -1,3 +1,10 @@
+
+/*
+ * The code currently learns about RACF information by making 'tsocmd' calls and
+ * scraping the output.
+ * In the future, this should be replaced by code that accesses information through RACF macros and/or SVC 132
+ */
+
 #define _POSIX_SOURCE 1
 #include <unistd.h>
 #include <stdio.h>
@@ -163,6 +170,75 @@ static int runcmd(const char* cmd, char* argv[], char** out, size_t* outsize, ch
   return progrc;
 }
 
+/*
+ *
+ * LISTDSD DATASET('FULTONM.MY.FILE') GENERIC ALL
+INFORMATION FOR DATASET FULTONM.MY.FILE (G)
+
+LEVEL  OWNER    UNIVERSAL ACCESS   WARNING   ERASE
+-----  -------- ----------------   -------   -----
+ 00    FULTONM         NONE          NO      NO <-- owner and level of universal access
+
+AUDITING
+--------
+FAILURES(READ)
+
+NOTIFY
+--------
+NO USER TO BE NOTIFIED
+
+YOUR ACCESS  CREATION GROUP  DATASET TYPE
+-----------  --------------  ------------
+   ALTER        CDEV           NON-VSAM          <--- my access (alter)
+
+NO INSTALLATION DATA
+
+              SECURITY LEVEL
+------------------------------------------
+NO SECURITY LEVEL
+
+CATEGORIES
+----------
+NO CATEGORIES
+
+SECLABEL
+--------
+NO SECLABEL
+
+CREATION DATE  LAST REFERENCE DATE  LAST CHANGE DATE
+(DAY) (YEAR)        (DAY) (YEAR)      (DAY) (YEAR)
+-------------  -------------------  ----------------
+ ***    **      NOT APPLICABLE FOR GENERIC PROFILE
+
+ALTER COUNT  CONTROL COUNT  UPDATE COUNT  READ COUNT
+-----------  -------------  ------------  ----------
+NOT APPLICABLE FOR GENERIC PROFILE
+
+   ID     ACCESS
+--------  -------
+*          READ                                <--- all IDs with RACF have READ access
+CDEV       READ                                <--- CDEV (group) has READ ACCESS
+
+   ID    ACCESS   CLASS                ENTITY NAME
+-------- ------- -------- ----------------------------------------------------
+NO ENTRIES IN CONDITIONAL ACCESS LIST
+ */
+
+static char* findhdr(char* buffer, char* coltitle[])
+{
+  return NULL;
+}
+
+static char* skipdashes(char* buffer)
+{
+  return NULL;
+}
+
+static char* getcol(char* buffer, size_t num)
+{
+  return NULL;
+}
+
 static Mode* drdmod(Dataset* dataset, SAFInfo* info)
 {
   char cmd[256];
@@ -173,8 +249,12 @@ static Mode* drdmod(Dataset* dataset, SAFInfo* info)
   int argc=2;
   char* argv[] = { "tsocmd", NULL, NULL }; 
   int rc;
+  char* gencols[] = { "LEVEL", "OWNER", "UNIVERSAL", "ACCESS", "WARNING", "ERASE" };
+  char* loc;
+  char* owner;
+  char* uacc;
 
-  rc = snprintf(cmd, sizeof(cmd), "LISTDSD DATASET('%s') GENERIC ALL", dataset->name);
+  rc = snprintf(cmd, sizeof(cmd), "LISTDSD DATASET('%s') GENERIC AUTHUSER", dataset->name);
   if (rc >= sizeof(cmd)) {
     fprintf(stderr, "Internal error. Truncation occurred\n");
     return NULL;
@@ -182,6 +262,38 @@ static Mode* drdmod(Dataset* dataset, SAFInfo* info)
   argv[1] = cmd;
 
   rc = runcmd("/bin/tsocmd", argv, &out, &outsize, &err, &errsize);
+  if (rc != 0) {
+    fprintf(stderr, "Internal error: %s failed with rc: %d\n", cmd, rc);
+    return NULL;
+  }
+
+  /*
+   * This is ugly - to be replaced with code that talks to RACF programmatic interface
+   * (in 31-bit assembler :( )
+   */
+
+  loc = findhdr(out, gencols);
+  if (!loc) {
+    fprintf(stderr, "Unable to find general column header from command %s\n", cmd);
+    return NULL;
+  }
+
+  loc = skipdashes(loc);
+  if (!loc) {
+    fprintf(stderr, "Unable to skip dashed lines after general column header from command %s\n", cmd);
+    return NULL;
+  }
+
+  owner = getcol(loc, 2);
+  if (!owner) {
+    fprintf(stderr, "Unable to determine dataset owner from command %s\n", cmd);
+    return NULL;
+  }
+  uacc = getcol(loc, 3);
+  if (!loc) {
+    fprintf(stderr, "Unable to determine universal access from command %s\n", cmd);
+    return NULL;
+  }
 
   return NULL;
 }
@@ -274,59 +386,6 @@ static SAFInfo* rdinfo(SAFInfo* info)
   return info;
 }
 
-/*
- *
- * LISTDSD DATASET('FULTONM.MY.FILE') GENERIC ALL
-INFORMATION FOR DATASET FULTONM.MY.FILE (G)
-
-LEVEL  OWNER    UNIVERSAL ACCESS   WARNING   ERASE
------  -------- ----------------   -------   -----
- 00    FULTONM         NONE          NO      NO
-
-AUDITING
---------
-FAILURES(READ)
-
-NOTIFY
---------
-NO USER TO BE NOTIFIED
-
-YOUR ACCESS  CREATION GROUP  DATASET TYPE
------------  --------------  ------------
-   ALTER        CDEV           NON-VSAM          <--- my access (alter)
-
-NO INSTALLATION DATA
-
-              SECURITY LEVEL
-------------------------------------------
-NO SECURITY LEVEL
-
-CATEGORIES
-----------
-NO CATEGORIES
-
-SECLABEL
---------
-NO SECLABEL
-
-CREATION DATE  LAST REFERENCE DATE  LAST CHANGE DATE
-(DAY) (YEAR)        (DAY) (YEAR)      (DAY) (YEAR)
--------------  -------------------  ----------------
- ***    **      NOT APPLICABLE FOR GENERIC PROFILE
-
-ALTER COUNT  CONTROL COUNT  UPDATE COUNT  READ COUNT
------------  -------------  ------------  ----------
-NOT APPLICABLE FOR GENERIC PROFILE
-
-   ID     ACCESS
---------  -------
-*          READ                                <--- all IDs with RACF have READ access
-CDEV       READ                                <--- CDEV (group) has READ ACCESS
-
-   ID    ACCESS   CLASS                ENTITY NAME
--------- ------- -------- ----------------------------------------------------
-NO ENTRIES IN CONDITIONAL ACCESS LIST
- */
 
 static int compute_modes(Mode* mode, Dataset* reference)
 {
@@ -369,7 +428,8 @@ void* dchmod_init(const char* userid, Mode* mode, Dataset* reference, int verbos
   }
 
   if (info->verbose) {
-    fprintf(stderr, "RACF Info:\n Default Group: %s\n Groups:\n", info->default_group.name);
+    fprintf(stderr, "RACF Info:\n User ID: %s\n Reference Dataset: %s\n Default Group: %s\n Groups:\n", 
+      info->userid, (reference == NULL) ? "<null>" : reference->name, info->default_group.name);
     for (i=0; i<info->numgroups; ++i) {
       fprintf(stderr, "  %s\n", info->group[i].name);
     }
