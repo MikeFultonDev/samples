@@ -16,6 +16,7 @@
 #include "dchmod.h"
 #include "dchmodsaf.h"
 #include "dchmodracf.h"
+#include "zossys.h"
 
 static char* dupword(const char* in, char* out, size_t maxsize) 
 {
@@ -82,20 +83,97 @@ CDEV       READ                                <--- CDEV (group) has READ ACCESS
 NO ENTRIES IN CONDITIONAL ACCESS LIST
  */
 
-static char* findhdr(char* buffer, char* coltitle[])
+/*
+ * findhdr: given an array of column titles, and a buffer, 
+ *          search through the buffer and find the first line 
+ *          that has each of the titles in order, separated only by 
+ *          1 or more blanks
+ * returns the address of the first non-blank character in the buffer
+ *         after the last column title, or NULL if it could not find
+ *         the array of columns.
+ */
+static char* findhdr(char* buffer, size_t buffsz, char* coltitle[])
 {
-  return NULL;
+  char* start;
+  const char* end = &buffer[buffsz];
+  size_t titlelen;
+  size_t i;
+  size_t numblanks;
+
+  start = strstr(buffer, coltitle[0]);
+  if (!start) {
+    fprintf(stderr, "findhdr: Unable to find first entry %s\n", coltitle[0]);
+    return NULL;
+  }
+
+  /*
+   * Slightly inefficient - we know the first coltitle matches - but 
+   * makes for a simpler loop
+   */
+  i=0;
+  while (coltitle[i]) {
+    titlelen = strlen(coltitle[i]);
+    if (&start[titlelen] > end) {
+      fprintf(stderr, "findhdr: entry %d would exceed length of buffer\n", i);
+      return NULL;
+    }
+    if (!memcmp(start, &coltitle[i], titlelen)) {
+      fprintf(stderr, "findhdr: Unable to find %s\n", coltitle[i]);
+      return NULL;
+    }
+    start = &start[titlelen];
+    numblanks=0;
+    while (*start == ' ') {
+      ++start;
+      ++numblanks;
+    }
+    if (numblanks == 0) {
+      fprintf(stderr, "findhdr: entry %d had no blanks after it\n", i);
+      return NULL;
+    }
+    ++i;
+  }
+  return start;
 }
 
 static char* skipdashes(char* buffer)
 {
-  return NULL;
+  size_t i=0;
+  while (buffer[i] == ' ' || buffer[i] == '-' || buffer[i] == '\n') {
+    ++i;
+  }
+  return &buffer[i];
 }
 
-static char* getcol(char* buffer, size_t num)
+static char* getcol(char* buffer, size_t num, size_t* collen)
 {
-  return NULL;
+  char* start = NULL;
+  char* end = NULL;
+  size_t curnum = 0;
+  char* cur;
+
+  cur = buffer;
+  while (*cur != '\0') {
+    if (*cur == ' ') {
+      if (end == NULL) {
+        end = cur;
+        *collen = end-start;
+        if (curnum == num) {
+          return start;
+        }
+        start = NULL;
+      }
+    } else {
+      if (start == NULL) {
+        start = cur;
+        end = NULL;
+        ++curnum;
+      }
+    }
+    ++cur;
+  }
 }
+
 static int dupdtmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
 {
   return -1;
@@ -111,10 +189,13 @@ static int drdmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
   int argc=2;
   char* argv[] = { "tsocmd", NULL, NULL }; 
   int rc;
-  char* gencols[] = { "LEVEL", "OWNER", "UNIVERSAL", "ACCESS", "WARNING", "ERASE" };
-  char* loc;
+  char* gencols[] = { "LEVEL", "OWNER", "UNIVERSAL", "ACCESS", "WARNING", "ERASE", NULL };
+  char* cur;
+  char* nxt;
   char* owner;
   char* uacc;
+  size_t ownerlen;
+  size_t uacclen;
 
   rc = snprintf(cmd, sizeof(cmd), "LISTDSD DATASET('%s') GENERIC AUTHUSER", dataset->name);
   if (rc >= sizeof(cmd)) {
@@ -134,29 +215,34 @@ static int drdmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
    * (in 31-bit assembler :( )
    */
 
-  loc = findhdr(out, gencols);
-  if (!loc) {
+  cur = out;
+  nxt = findhdr(cur, outsize, gencols);
+  if (!nxt) {
     fprintf(stderr, "Unable to find general column header from command %s\n", cmd);
     return -1;
   }
+  outsize -= (nxt-cur);
 
-  loc = skipdashes(loc);
-  if (!loc) {
+  cur=nxt;
+  nxt = skipdashes(cur);
+  if (!nxt) {
     fprintf(stderr, "Unable to skip dashed lines after general column header from command %s\n", cmd);
     return -1;
   }
 
-  owner = getcol(loc, 2);
+  cur=nxt;
+  owner = getcol(cur, 2, &ownerlen);
   if (!owner) {
     fprintf(stderr, "Unable to determine dataset owner from command %s\n", cmd);
     return -1;
   }
-  uacc = getcol(loc, 3);
-  if (!loc) {
+  uacc = getcol(cur, 3, &uacclen);
+  if (!uacc) {
     fprintf(stderr, "Unable to determine universal access from command %s\n", cmd);
     return -1;
   }
 
+printf("owner:%*.*s uacc:%*.*s\n", ownerlen, ownerlen, owner, uacclen, uacclen, uacc);
   return 0;
 }
   
@@ -264,7 +350,7 @@ int racf_init(SAFInfo* info) {
     RACFInfo* racfinfo = (RACFInfo*) (info->provider);
     size_t i;
 
-    fprintf(stderr, "RACF Default Group: %s\nNumber of Groups:%u\n", 
+    fprintf(stderr, "RACF Default Group: %s\nNumber of Groups:%zu\n", 
       racfinfo->default_group.name, racfinfo->numgroups);
     for (i=0; i<racfinfo->numgroups; ++i) {
       fprintf(stderr, " %s\n", racfinfo->group[i].name);

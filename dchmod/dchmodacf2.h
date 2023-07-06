@@ -5,5 +5,6 @@
     int tbd;
   } ACF2Info;
 
+  int acf2_init(SAFInfo* info);
   int acf2_term(SAFInfo* info);
 #endif

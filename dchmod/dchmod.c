@@ -2,9 +2,31 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dchmod.h"
 #include "dchmodsaf.h"
+#include "dchmodracf.h"
+#include "dchmodts.h"
+#include "dchmodacf2.h"
+
+#ifdef _LP64
+  #error "This code is 31-bit addressing mode specific"
+#endif
+
+typedef struct {
+  char id[4];
+} CVTRAC;
+
+typedef struct {
+  char unk[0x3E0];
+  CVTRAC* cvtrac;
+} CVT;
+
+typedef struct {
+  char unk[0x10];
+  CVT* cvt;
+} PSA;
 
 typedef enum {
   SAFUnk=0,
@@ -13,6 +35,23 @@ typedef enum {
   ACF2=3
 } SAFProvider;
 
+static SAFProvider saf_provider()
+{
+
+  PSA* psa = (void*) 0;
+  char* id = psa->cvt->cvtrac->id;
+
+  if (!memcmp(id, "RCVT", 4)) {
+    return RACF;
+  } else if (!memcmp(id, "RTSS", 4)) {
+    return TopSecret;
+  } else if (!memcmp(id, "ACF2", 4)) {
+    return ACF2;
+  } else {
+    return SAFUnk;
+  }
+}
+  
 static int compute_modes(Mode* mode, Dataset* reference)
 {
   fprintf(stderr, "write code to compute modes\n");
@@ -20,11 +59,6 @@ static int compute_modes(Mode* mode, Dataset* reference)
   return 0;
 }
 
-static SAFProvider saf_provider()
-{
-  return RACF;
-}
-  
 void* dchmod_init(const char* userid, Mode* mode, Dataset* reference, int verbose)
 {
   SAFInfo* info;
