@@ -4,7 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 
-DatasetError check_dataset(const char* dataset) 
+DatasetError check_dataset(const char* dataset, int haswildcard) 
 {
   size_t i=0;
   size_t qual_len=0;
@@ -102,6 +102,17 @@ DatasetError check_dataset(const char* dataset)
         qual_len=0;
         ++qualifiers;
         break;
+      case '*':
+        if (!haswildcard) {
+          return DatasetInvWildcard;
+        }
+        if (i == 0) {
+          return DatasetInvWildcard;
+        }
+        if (dataset[i-1] != '.' || dataset[i+1] != '\0') {
+          return DatasetInvWildcard;
+        }
+        break;
       case '\0':
         if (qual_len == 0) {
           return DatasetInvDotEnd;
@@ -165,6 +176,9 @@ void pdataseterror(DatasetError err)
       break;
     case DatasetQualifierTooLong:
       fprintf(stderr, "Invalid dataset name: qualifier must be no more than 8 characters\n");
+      break;
+    case DatasetInvWildcard:
+      fprintf(stderr, "Invalid dataset name: wildcard can only be at end of dataset name and only when 'haswildcard' is true\n");
       break;
     default:
       fprintf(stderr, "Unexpected dataset error: %d\n", err);

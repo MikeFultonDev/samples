@@ -9,10 +9,11 @@
     DatasetInvDotEnd,
     DatasetInvMinQual,
     DatasetNameTooLong,
-    DatasetQualifierTooLong
+    DatasetQualifierTooLong,
+    DatasetInvWildcard
   } DatasetError;
 
   void pdataseterror(DatasetError err);
-  DatasetError check_dataset(const char* dataset);
+  DatasetError check_dataset(const char* dataset, int haswildcard);
   char* normalize_dataset(const char* in, char* out);
 #endif

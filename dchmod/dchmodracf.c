@@ -114,7 +114,7 @@ static char* findhdr(char* buffer, size_t buffsz, char* coltitle[])
   while (coltitle[i]) {
     titlelen = strlen(coltitle[i]);
     if (&start[titlelen] > end) {
-      fprintf(stderr, "findhdr: entry %d would exceed length of buffer\n", i);
+      fprintf(stderr, "findhdr: entry %zu would exceed length of buffer\n", i);
       return NULL;
     }
     if (!memcmp(start, &coltitle[i], titlelen)) {
@@ -128,7 +128,7 @@ static char* findhdr(char* buffer, size_t buffsz, char* coltitle[])
       ++numblanks;
     }
     if (numblanks == 0) {
-      fprintf(stderr, "findhdr: entry %d had no blanks after it\n", i);
+      fprintf(stderr, "findhdr: entry %zu had no blanks after it\n", i);
       return NULL;
     }
     ++i;
@@ -172,6 +172,7 @@ static char* getcol(char* buffer, size_t num, size_t* collen)
     }
     ++cur;
   }
+  return NULL;
 }
 
 static int dupdtmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
@@ -242,7 +243,6 @@ static int drdmod(Mode* mode, Dataset* dataset, struct SAFInfo* info)
     return -1;
   }
 
-printf("owner:%*.*s uacc:%*.*s\n", ownerlen, ownerlen, owner, uacclen, uacclen, uacc);
   return 0;
 }
   

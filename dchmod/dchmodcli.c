@@ -1,28 +1,33 @@
 
 /*
  * dchmod: code to update dataset file 'mode' bits
- *         reduced interface from 'chmod':
- *          - supporting ug for symbolic pattern (u: user, g: group)
+ *         interface inspired by 'chmod':
+ *          - supporting ugo for symbolic pattern (u: user, g: group, o: universal access)
  *          - support + or - to add or remove access for specified symbolic pattern 
+ *         Unlike chmod, you need to explicitly specify the user(s) and group(s) you want to
+ *         make changes to.
+ *         Also, unlike chmod, there is no -r or --recursive option. Instead you should
+ *         end your dataset pattern with .* to indicate that a generic rule should be created.
  * Notes:
- *   If 'g' is specified and more than one group is associated with the dataset, it will report an error
- *   If a non-RACF security subsystem is in use, it will report an error
+ *   If a non-RACF security subsystem is in use, it will report an error.
+ *   Help would be greatly appreciated for TopSecret support to be added in.
  */
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "dataset.h"
+#include "accessid.h"
 #include "dchmod.h"
 #include "dchmodcli.h"
 
 static void syntax()
 {
   fprintf(stderr, 
-    "dchmod [OPTION]... MODE[,MODE]... DATASET...\n"
-    "dchmod [OPTION]... --reference=RDATASET DATASET...\n"
-      "Change the mode of each DATASET to MODE.\n"
-      "  With --reference, change the mode of each DATASET to that of RDATASET.\n"
+    "dchmod [OPTION]... MODE[,MODE]... USER|GROUP[,USER|GROUP]... DATASET-PATTERN...\n"
+    "dchmod [OPTION]... --reference=RDATASET-PATTERN DATASET-PATTERN...\n"
+      "Change the mode of each DATASET-PATTERN to MODE for each specified USER and GROUP.\n"
+      "  With --reference, change the mode of each DATASET-PATTERN to that of RDATASET-PATTERN.\n"
     "OPTION is one or more of:\n"
     "  -c, --changes\n"
     "         like verbose but report only when a change is made\n"
@@ -33,16 +38,20 @@ static void syntax()
     "  --no-preserve-hlq\n"
     "         do not treat root hlq specially\n"
     "  --preserve-hlq\n"
-    "         fail to operate recursively on hlq\n" 
-    "  --reference=RDATASET\n"
-    "         use RDATASET's mode instead of specifying MODE values.\n" 
-    "  -R, --recursive\n"
-    "         change partitioned and sequential datasets that match root pattern.\n"
+    "         fail to operate on just an hlq being specified\n" 
+    "  --reference=RDATASET-PATTERN\n"
+    "         use RDATASET-PATTERN's mode instead of specifying MODE values.\n" 
     "  --help display this help and exit\n"
     "  --version\n"
     "         output version information and exit\n"
     "  Each MODE is of the form\n"
-    "  '[ugoa]*([-+=]([rwx]*))+'.\n"
+    "  '[ugoa]*([-+]([rwx]*))+'.\n"
+    "Examples\n"
+    "  Give the group DEPT237 read access to all datasets that start with FULTON.DEPT237.*\n"
+    "    dchmod g+r dept237 fulton.dept237.*\n"
+    "  Give Dewayne read/write access to the dataset FULTON.COMMON.DATA\n"
+    "    dchmod u+rw dewayne FULTON.COMMON.DATA\n"
+
   );
   exit(4);
 }
@@ -59,7 +68,7 @@ static const char* startswith(const char* str, const char* prefix)
 
 static Dataset* update_reference(DatasetChangeMode* dcm, const char* reference) 
 {
-  DatasetError err = check_dataset(reference);
+  DatasetError err = check_dataset(reference, 1);
   if (err) {
     fprintf(stderr, "Reference dataset: %s is invalid\n", reference);
     pdataseterror(err);
@@ -75,7 +84,6 @@ static int add_option(DatasetChangeMode* dcm, Option* option)
   dcm->o.quiet |= option->quiet;
   dcm->o.verbose |= option->verbose;
   dcm->o.debug |= option->debug;
-  dcm->o.recursive |= option->recursive;
   dcm->o.reference |= option->reference;
   dcm->o.help |= option->help;
   dcm->o.version |= option->version;
@@ -110,8 +118,6 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
         o->no_preserve_hlq = 1;
       } else if (!strcmp(argv[entry], "--preserve-hlq")) {
         o->preserve_hlq = 1;
-      } else if (!strcmp(argv[entry], "--recursive")) {
-        o->recursive = 1;
       } else if (!strcmp(argv[entry], "--help")) {
         o->help = 1;
       } else if ((p=startswith(argv[entry], "--reference="))) {
@@ -120,6 +126,7 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
         }
         o->reference = 1;
         ps->mode_done = 1;
+        ps->ids_done = 1;
       } else {
         syntax();
       }
@@ -142,13 +149,6 @@ static Option* options(DatasetChangeMode* dcm, ParameterState* ps, const char* a
     case 'v':
       if (argv[entry][2] == '\0') {
         o->verbose = 1;
-      } else {
-        syntax();
-      }
-      break;
-    case 'R':
-      if (argv[entry][2] == '\0') {
-        o->recursive = 1;
       } else {
         syntax();
       }
@@ -269,9 +269,61 @@ static int add_mode(DatasetChangeMode* dcm, Mode* mode)
   return 0;
 }
 
+static AccessID* ids(ParameterState* ps, const char* argv[], int entry, AccessID** ids) 
+{
+  int i;
+  size_t idnum=1;
+  size_t idlen;
+  const char* start=argv[entry];
+  const char* next;
+
+  if (ps->ids_done) {
+    return NULL;
+  }
+
+  for (i=0; i<strlen(start); ++i) {
+    if (start[i] == ',') {
+      ++idnum;
+    }
+  }
+
+  *ids = calloc(sizeof(AccessID), idnum);
+  if (! (*ids)) {
+    fprintf(stderr, "Error: Unable to acquire storage for access ids\n");
+    return NULL;
+  }
+
+  for (i=0; i<idnum; ++i) {
+    AccessIDError err = accessid_check(start, ',', &next);
+    if (err != AccessIDOK) {
+      fprintf(stderr, "User or Group list: %s is invalid\n", argv[entry]);
+      paccessiderror(err);
+      return NULL;
+    }
+    idlen = next-start;
+    memcpy((*ids)[i].name, start, idlen);
+    (*ids)[i].name[idlen] = '\0';
+    start = next+1;
+  }
+  if (*next != '\0') {
+    fprintf(stderr, "Internal Error: Unexpected mismatch in commas and number of entries\n");
+    return NULL;
+  }
+
+  ps->ids_done = 1;
+
+  return (*ids);
+}
+
+static int add_ids(DatasetChangeMode* dcm, AccessID* id)
+{
+  dcm->id = id;
+  return 0;
+}
+
 static Dataset* dataset(ParameterState* ps, const char* argv[], int entry, Dataset* ds) 
 {
-  DatasetError err = check_dataset(argv[entry]);
+  DatasetError err = check_dataset(argv[entry], 1);
   if (err) {
     fprintf(stderr, "Dataset: %s is invalid\n", argv[entry]);
     pdataseterror(err);
@@ -313,10 +365,6 @@ static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset, void* work)
     fprintf(stderr, "changes not implemented yet\n");
     return 1;
   }
-  if (dcm->o.recursive) {
-    fprintf(stderr, "recursive not implemented yet\n");
-    return 1;
-  }
   if (dcm->o.no_preserve_hlq) {
     fprintf(stderr, "no_preserve_hlq not implemented yet\n");
     return 1;
@@ -333,7 +381,6 @@ static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset, void* work)
       "quiet:%d\n"
       "verbose:%d\n"
       "debug:%d\n"
-      "recursive:%d\n"
       "reference:%d\n"
       "help:%d\n"
       "version:%d\n"
@@ -343,7 +390,6 @@ static int change_mode_cli(DatasetChangeMode* dcm, Dataset* dataset, void* work)
       dcm->o.quiet,
       dcm->o.verbose,
       dcm->o.debug,
-      dcm->o.recursive,
       dcm->o.reference,
       dcm->o.help,
       dcm->o.version,
@@ -372,15 +418,18 @@ int main(int argc, const char* argv[])
   Mode m = { 0 } ;
   Dataset r = { 0 };
   Dataset d = { 0 };
+  AccessID* id;
   int i;
   void* work;
 
-  for (i=1; i<argc && !ps.err && !ps.mode_done; ++i) {
+  for (i=1; i<argc && !ps.err && !ps.ids_done; ++i) {
     if (options(&dcm, &ps, argv, i, &o)) {
       add_option(&dcm, &o);
     } else if (mode(&ps, argv, i, &m)) {
       add_mode(&dcm, &m);
-    } 
+    } else if (ids(&ps, argv, i, &id)) {
+      add_ids(&dcm, id);
+    }
   }
 
   if (ps.err) {

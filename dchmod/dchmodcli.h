@@ -6,7 +6,6 @@
     unsigned int quiet:1;
     unsigned int verbose:1;
     unsigned int debug:1;
-    unsigned int recursive:1;
     unsigned int reference:1;
     unsigned int help:1;
     unsigned int version:1;
@@ -30,11 +29,13 @@
     Option o;
     Mode m;
     Dataset r;
+    AccessID* id;
   } DatasetChangeMode;
 
   typedef struct {
     unsigned int opt_done:1;
     unsigned int mode_done:1;
+    unsigned int ids_done:1;
     unsigned int err:1;
   } ParameterState;
 #endif

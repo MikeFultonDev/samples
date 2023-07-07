@@ -31,6 +31,7 @@ smf/smf119
 dchmod/*.o
 dchmod/dchmod
 dchmod/dataset_test
+dchmod/accessid_test
 cmakeit/hw/build
 cobol-dep/*.o
 cobol-dep/*.lst
