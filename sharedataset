@@ -1,0 +1,104 @@
+#!/bin/sh
+
+# 
+# Simple script to share a dataset with a group (read-only)
+#
+function create_profile
+{
+  ds="$1"
+  if ${createprofile} ; then
+    addsd=$(tsocmd "addsd '${ds}' uacc(none) generic" 2>/dev/null)
+    if [ $? -gt 0 ]; then
+      printf "Unable to create generic dataset profile for dataset ${ds}\n" >&2
+      return 4
+    fi
+  else
+    printf "You need to create a generic dataset profile for dataset ${ds} before trying to share the dataset\n" >&2
+    return 2
+  fi
+  return 0
+}
+
+if [ $# -lt 2 ]; then
+  printf "Syntax: $0 <dataset> <group>\n" >&2
+  exit 4
+fi
+
+#set -x
+
+accdataset=$(printf "$1" | tr '[:lower:]' '[:upper:]')
+accgroup=$(printf "$2" | tr '[:lower:]' '[:upper:]')
+
+#
+# createprofile needs to be an option and not hardcoded
+#
+createprofile=true
+
+me="${USER}"
+
+#
+# First see what groups I am in
+#
+
+groups=$(tsocmd "LISTUSER ${me}" 2>/dev/null | grep -e '^  GROUP=' | awk -F'[= ]+' '{ print $3; }')
+
+ok=false
+for group in ${groups}; do
+  if [ "${group}" = "${accgroup}" ]; then
+    ok=true
+    break
+  fi
+done
+
+if ! ${ok} ; then
+  printf "You are not in group ${accgroup}\n" >&2
+  exit 4
+fi
+
+type dls >/dev/null 2>&1
+if [ $? -gt 0 ]; then
+  printf "You need IBM Z Open Automation Utilities for this script\n" >&2
+  exit 4
+fi
+
+normdataset=$(dls "${accdataset}" 2>/dev/null)
+if [ $? -gt 0 ]; then
+  printf "Dataset pattern %s does not exist\n" "${accdataset}" >&2
+  exit 4
+fi
+nl=$(printf "$normdataset" | wc -l)
+if [ $nl -gt 0 ]; then
+  printf "Dataset pattern %s matches more than one dataset\n" "${accdataset}" >&2
+  exit 4
+fi
+
+dsd=$(tsocmd "listdsd dataset('${normdataset}') generic" 2>/dev/null)
+if [ $? -gt 0 ]; then
+  if [ "x${normdataset%%.*}" != "x${me}" ]; then 
+    printf "Dataset ${normdataset} does not have a profile.\n" >&2
+    printf "You may need special privileges to create a profile for ${normdataset} because it does not start with your HLQ ${me}\n" >&2
+    exit 4
+  else
+    if ! create_profile "${normdataset}" ; then
+      exit 4
+    fi
+  fi
+fi
+
+profile=$(printf "%s" "${dsd}\n" | head -1 | awk '{ print $4; }')
+
+if [ "x${profile}" != "x${normdataset}" ]; then 
+  if ! create_profile "${normdataset}" ; then
+    exit 4
+  fi
+fi
+
+permit=$(tsocmd "permit '${normdataset}' id(${accgroup}) access(read) generic" 2>/dev/null)
+if [ $? -gt 0 ]; then
+  printf "Unable to permit ${accgroup} to ${normdataset}." >&2
+  printf "%s\n" "${permit}" >&2
+  exit 4
+fi
+
+
+
