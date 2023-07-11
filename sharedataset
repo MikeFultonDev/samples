@@ -3,6 +3,12 @@
 # 
 # Simple script to share a dataset with a group (read-only)
 #
+
+#
+# create_profile: before you can permit someone to a dataset, you have to have a profile for the dataset
+# This code creates a simple generic profile for the dataset passed in, assuming the 'createprofile' flag is
+# true, otherwise it fails
+#
 function create_profile
 {
   ds="$1"
@@ -37,7 +43,8 @@ createprofile=true
 me="${USER}"
 
 #
-# First see what groups I am in
+# First see what groups I am in by scraping the output of the LISTUSER command and looking
+# for lines that start with '  GROUP='
 #
 
 groups=$(tsocmd "LISTUSER ${me}" 2>/dev/null | grep -e '^  GROUP=' | awk -F'[= ]+' '{ print $3; }')
@@ -55,12 +62,19 @@ if ! ${ok} ; then
   exit 4
 fi
 
+#
+# dls (dataset list) from ZOAU is used below - make sure it's available
+#
 type dls >/dev/null 2>&1
 if [ $? -gt 0 ]; then
   printf "You need IBM Z Open Automation Utilities for this script\n" >&2
   exit 4
 fi
 
+#
+# normalize the dataset and, if a wildcard was used, make sure there are 
+# not multiple datasets that match the pattern
+#
 normdataset=$(dls "${accdataset}" 2>/dev/null)
 if [ $? -gt 0 ]; then
   printf "Dataset pattern %s does not exist\n" "${accdataset}" >&2
@@ -71,6 +85,20 @@ if [ $nl -gt 0 ]; then
   printf "Dataset pattern %s matches more than one dataset\n" "${accdataset}" >&2
   exit 4
 fi
+
+#
+# If there is no dataset profile (non-zero error code), then
+# check if the dataset starts with something other than my high level qualifier.
+# If so, unless I have special privileges I won't be able to create a dataset profile
+# so don't bother to do anything fancy - just fail
+#
+# If the high level qualifier _does_ match my high level qualifier, go create the profile
+#
+# Once I find a profile, check that it is specifically for this dataset and not more 
+# generic by verifying it matches exactly (e.g. don't match FULTONM.MY.FILE to FULTONM.*.**)
+#
+# If I get past all these hurdles, issue the permit command to give the group read access
+#
 
 dsd=$(tsocmd "listdsd dataset('${normdataset}') generic" 2>/dev/null)
 if [ $? -gt 0 ]; then
