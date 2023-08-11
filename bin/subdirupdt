@@ -11,6 +11,7 @@
 #
 # An introduction to the ZOSOpenTools ports, and the quality of the latest unsupported ports is available at:
 #    https://zosopentools.github.io/meta/#/
+#
 # If you are interested in contributing, please consider attending our guild meetings:
 #    https://github.com/ZOSOpenTools/meta/discussions/categories/guild
 
@@ -78,7 +79,7 @@ else
 fi
 
 echo "Search for <${search}> and replace with <${replace}>"
-allcolonfiles=`find . -name "*" -type f | grep ":" 2>/dev/null`
+allcolonfiles=`find "${dir}" -name "*" -type f | grep ":" 2>/dev/null`
 if [ "${allcolonfiles}x" != "x" ]; then
   echo "There are files in this directory tree that have a : in them - currently a restriction" >&2
   Syntax
