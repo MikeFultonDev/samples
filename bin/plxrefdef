@@ -3,8 +3,11 @@
 # See very crude ref/def for a directory of files.
 #
 # Tricks:
-# to see ref/def for a given file:
+# To see ref/def in a given file:
 #   plxrefdef ./ | grep <file> | awk -F: '{ $1=""; print; }' | sort -n
+#
+# To see ref/def for a given proc (sorting could be funky):
+#   plxrefdef ./ | grep <proc>
 
 if [ $# -eq 0 ]; then
   printf "Syntax: %s [directory]+\n" "$0" >&2
@@ -17,9 +20,9 @@ if [ $# -gt 1 ]; then
 fi
 
 dir=$1
-files="${dir}/*.plx"
+files="${dir}/*.plx ${dir}/*.plas"
 ref=$(grep -n -E 'CALL[[:blank:]]+[[:alnum:]|_]+[[:blank:]]*;' ${files})
-defstart=$(grep -n -E 'PROC[[:blank:]]*;|PROCEDURE[[:blank:]]*;|PROCEDURE[[:blank:]]*\(|PROC[[:blank:]]*\(PROCEDURE[[:blank:]]*OPT|PROC[[:blank:]]*OPT' ${files})
+defstart=$(grep -n -E 'PROC[[:blank:]]*;|PROCEDURE[[:blank:]]*;|PROCEDURE[[:blank:]]*\(|PROC[[:blank:]]*\(|PROCEDURE[[:blank:]]*OPT|PROC[[:blank:]]*OPT' ${files})
 defend=$(grep -n -E 'END[[:blank:]]+[[:alnum:]|_]+;' ${files})
 printf "%s\n" "${ref}"
 printf "%s\n" "${defstart}"
