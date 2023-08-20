@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# See very crude ref/def for a directory of files.
+#
+# Tricks:
+# to see ref/def for a given file:
+#   plxrefdef ./ | grep <file> | awk -F: '{ $1=""; print; }' | sort -n
+
+if [ $# -eq 0 ]; then
+  printf "Syntax: %s [directory]+\n" "$0" >&2
+  printf "%s\n" "where <directory> is the directory to search" >&2
+  exit 4
+fi
+if [ $# -gt 1 ]; then
+  printf "Only implemented one directory so far\n" >&2
+  exit 4
+fi
+
+dir=$1
+files="${dir}/*.plx"
+ref=$(grep -n -E 'CALL [[:alnum:]|_]+[[:blank:]]*;' ${files})
+defstart=$(grep -n -E 'PROC[[:blank:]]*;|PROCEDURE[[:blank:]]*;|PROCEDURE[[:blank:]]*\(|PROC[[:blank:]]*\(PROCEDURE[[:blank:]]*OPT|PROC[[:blank:]]*OPT' ${files})
+defend=$(grep -n -E 'END[[:blank:]]+[[:alnum:]|_]+;' ${files})
+printf "%s\n" "${ref}"
+printf "%s\n" "${defstart}"
+printf "%s\n" "${defend}"
