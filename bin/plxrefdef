@@ -27,9 +27,9 @@ fi
 
 dir=$1
 files="${dir}/*.plx ${dir}/*.plas"
-ref=$(grep -n -E 'CALL[[:blank:]]+[[:alnum:]|_]+[[:blank:]]*;' ${files})
-defstart=$(grep -n -E 'PROC[[:blank:]]*;|PROCEDURE[[:blank:]]*;|PROCEDURE[[:blank:]]*\(|PROC[[:blank:]]*\(|PROCEDURE[[:blank:]]*OPT|PROC[[:blank:]]*OPT' ${files})
-defend=$(grep -n -E 'END[[:blank:]]+[[:alnum:]|_]+;' ${files})
+ref=$(grep -i -n -E 'CALL[[:blank:]]+[[:alnum:]|_]+[[:blank:]]*;|ATTACH[[:blank:]]+EP=' ${files})
+defstart=$(grep -i -n -E 'PROC[[:blank:]]*;|PROCEDURE[[:blank:]]*;|PROCEDURE[[:blank:]]*\(|PROC[[:blank:]]*\(|PROCEDURE[[:blank:]]*OPT|PROC[[:blank:]]*OPT' ${files})
+defend=$(grep -i -n -E 'END[[:blank:]]+[[:alnum:]|_]+;' ${files})
 printf "%s\n" "${ref}"
 printf "%s\n" "${defstart}"
 printf "%s\n" "${defend}"
