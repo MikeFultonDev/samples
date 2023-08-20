@@ -4,7 +4,7 @@
 #
 # Tricks:
 # To see ref/def in a given file:
-#   plxrefdef ./ | grep <file> | awk -F: '{ $1=""; print; }' | sort -n | sort -u
+#   plxrefdef ./ | grep <file> | awk -F: '{ $1=""; print; }' | sort -n -u
 #
 # To see ref/def for a given proc (sorting could be funky):
 #   plxrefdef ./ | grep <proc>
