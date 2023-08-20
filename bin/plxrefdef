@@ -8,6 +8,12 @@
 #
 # To see ref/def for a given proc (sorting could be funky):
 #   plxrefdef ./ | grep <proc>
+#
+# Known restriction: 
+#   If you have 
+#   <proc>:
+#   PROC...;
+#   across two lines (or more) then you will just see the unnamed PROC line spat out
 
 if [ $# -eq 0 ]; then
   printf "Syntax: %s [directory]+\n" "$0" >&2
