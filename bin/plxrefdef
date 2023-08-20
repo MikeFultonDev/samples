@@ -5,8 +5,6 @@
 # Tricks:
 # To see ref/def in a given file:
 #   plxrefdef ./ | grep <file> | awk -F: '{ $1=""; print; }' | sort -n | sort -u
-# (or if you need to keep the colons)
-#   plxrefdef ./ | grep <file> | awk -F: -v OFS=':' '{ $1=""; print; }' | sort -n | sort -u
 #
 # To see ref/def for a given proc (sorting could be funky):
 #   plxrefdef ./ | grep <proc>
