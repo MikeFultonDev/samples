@@ -1,5 +1,5 @@
        IDENTIFICATION DIVISION.                                                 
        PROGRAM-ID. HW.                                                          
        PROCEDURE DIVISION.                                                      
-           COPY "hw.cpy".                                                       
+           COPY "HW".                                                
            STOP RUN.                                                            

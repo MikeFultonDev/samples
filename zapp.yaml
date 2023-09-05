@@ -1,0 +1,12 @@
+name: name
+description: application description
+version: 0.0.1
+
+propertyGroups:
+  - name: property-group-name
+    compilerOptions: option
+    libraries:
+      - name: syslib
+        type: local
+        locations:
+          - "**"
